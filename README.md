@@ -1,4 +1,4 @@
-# traffic-simulation-os-project
+# Projeto - Simulador de Tráfego Urbano em C
 
 Simulador de tráfego urbano desenvolvido em C utilizando Pthreads, mutexes, semáforos e variáveis de condição
 para demonstrar conceitos de Sistemas Operacionais como sincronização, exclusão mútua, coordenação de threads
