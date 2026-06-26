@@ -5,7 +5,7 @@
  * @date 2026-06-26
  */
 
-#include <stddef.h> // para o uso de NULL
+#include <stdlib.h> // para o uso de `NULL` e `abs()`
 #include <stdbool.h>
 
 #include "vehicle_movement.h"
@@ -18,7 +18,7 @@
  * base na sua velocidade.
  *
  * @param vehicle Ponteiro constante para o veículo analisado.
- * @param currentTick O ciclo/tick atual do relógio global da simulação.
+ * @param current_tick O ciclo/tick atual do relógio global da simulação.
  *
  * @return true
  * - Se o veículo for uma ambulância (AMBULANCE) ou carro rápido (CAR_FAST),
@@ -31,11 +31,11 @@
  * - Se as condições matemáticas de divisão do tick para carros médios ou lentos
  * não forem satisfeitas.
  */
-bool shouldMoveVehicle(const Vehicle *vehicle, unsigned long currentTick) {
+bool should_move_vehicle(const Vehicle *vehicle, unsigned long current_tick) {
   if (vehicle == NULL)
     return false;
 
-  VehicleType vehicle_type = vehicle_getType(vehicle);
+  VehicleType vehicle_type = vehicle_get_type(vehicle);
 
   // Vai verificar qual tick estamos.
   switch (vehicle_type) {
@@ -43,9 +43,9 @@ bool shouldMoveVehicle(const Vehicle *vehicle, unsigned long currentTick) {
   case CAR_FAST:
     return true;
   case CAR_MEDIUM:
-    return (currentTick % 2 == 0);
+    return (current_tick % 2 == 0);
   case CAR_SLOW:
-    return (currentTick % 4 == 0);
+    return (current_tick % 4 == 0);
   default:
     return false;
   }
@@ -56,8 +56,8 @@ bool shouldMoveVehicle(const Vehicle *vehicle, unsigned long currentTick) {
  * não diagonal).
  *
  * @param vehicle Ponteiro constante para o veículo que pretende mover-se.
- * @param targetX Coordenada X do destino alvo na matriz.
- * @param targetY Coordenada Y do destino alvo na matriz.
+ * @param target_x Coordenada X do destino alvo na matriz.
+ * @param target_y Coordenada Y do destino alvo na matriz.
  *
  * @return true
  * - Se o destino estiver exatamente a 1 unidade de distância ortogonal (Cima,
@@ -69,33 +69,33 @@ bool shouldMoveVehicle(const Vehicle *vehicle, unsigned long currentTick) {
  * - Se o movimento tentado for diagonal ou se o destino for a própria célula
  * atual do veículo (distância != 1).
  */
-bool isAdjacentCell(const Vehicle *vehicle, int targetX, int targetY) {
+bool is_adjacent_cell(const Vehicle *vehicle, int target_x, int target_y) {
   if (vehicle == NULL)
     return false;
 
   // Garante o respeito aos limites da matriz global do mapa
-  if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 ||
-      targetY >= MAP_HEIGHT) {
+  if (target_x < 0 || target_x >= MAP_WIDTH || target_y < 0 ||
+      target_y >= MAP_HEIGHT) {
     return false;
   }
 
-  int currentX = vehicle_getX(vehicle);
-  int currentY = vehicle_getY(vehicle);
+  int current_x = vehicle_get_x(vehicle);
+  int current_y = vehicle_get_y(vehicle);
 
-  int diffX = abs(targetX - currentX);
-  int diffY = abs(targetY - currentY);
+  int diff_x = abs(target_x - current_x);
+  int diff_y = abs(target_y - current_y);
 
   // Movimento ortogonal direto: a soma das diferenças absolutas deve ser
   // exatamente 1
-  return (diffX + diffY == 1);
+  return (diff_x + diff_y == 1);
 }
 
 /**
  * @brief Verifica de forma segura e sincronizada se uma coordenada do mapa está
  * livre para tráfego.
  *
- * @param targetX Coordenada X a ser inspecionada.
- * @param targetY Coordenada Y a ser inspecionada.
+ * @param target_x Coordenada X a ser inspecionada.
+ * @param target_y Coordenada Y a ser inspecionada.
  *
  * @return true
  * - Se a célula destino for transitável (diferente de TILE_BLOCKED) E não
@@ -108,23 +108,23 @@ bool isAdjacentCell(const Vehicle *vehicle, int targetX, int targetY) {
  * ocorra uma falha crítica no sistema de threads ao tentar trancar ou
  * destrancar o Mutex (`lock`) da célula.
  */
-bool isCellAvailable(int targetX, int targetY) {
-  if (targetX < 0 || targetX >= MAP_WIDTH || targetY < 0 ||
-      targetY >= MAP_HEIGHT) {
+bool is_cell_available(int target_x, int target_y) {
+  if (target_x < 0 || target_x >= MAP_WIDTH || target_y < 0 ||
+      target_y >= MAP_HEIGHT) {
     return false;
   }
 
   bool available = false;
 
   // Exclusão mútua individual por célula para leitura segura do estado
-  TRY(pthread_mutex_lock(&map[targetY][targetX].lock));
+  TRY(pthread_mutex_lock(&map[target_y][target_x].lock));
 
-  if (map[targetY][targetX].tile != TILE_BLOCKED &&
-      !map[targetY][targetX].is_occupied) {
+  if (map[target_y][target_x].tile != TILE_BLOCKED &&
+      !map[target_y][target_x].is_occupied) {
     available = true;
   }
 
-  TRY(pthread_mutex_unlock(&map[targetY][targetX].lock));
+  TRY(pthread_mutex_unlock(&map[target_y][target_x].lock));
   return available;
 }
 
@@ -146,47 +146,47 @@ bool isCellAvailable(int targetX, int targetY) {
  * mútua (`lock`) e pode abortar o programa via macro `TRY` em caso de falha de
  * concorrência com pthreads.
  */
-bool hasVehicleAhead(const Vehicle *vehicle) {
+bool has_vehicle_ahead(const Vehicle *vehicle) {
   if (vehicle == NULL)
     return false;
 
-  int currentX = vehicle_getX(vehicle);
-  int currentY = vehicle_getY(vehicle);
-  int dir = vehicle_getDirection(vehicle);
+  int current_x = vehicle_get_x(vehicle);
+  int current_y = vehicle_get_y(vehicle);
+  int dir = vehicle_get_direction(vehicle);
 
   // Variaveis temporarias , para calcular  a posição da frente do veivulo.
-  int nextX = currentX;
-  int nextY = currentY;
+  int next_x = current_x;
+  int next_y = current_y;
 
   // Projetar a coordenada no mapa baseada na orientação atual
   switch (dir) {
   case DIRECTION_UP:
-    nextY--;
+    next_y--;
     break; // Sobe uma linha na matriz
   case DIRECTION_DOWN:
-    nextY++;
+    next_y++;
     break; // Desce uma linha na matriz
   case DIRECTION_LEFT:
-    nextX--;
+    next_x--;
     break; // Recua uma coluna
   case DIRECTION_RIGHT:
-    nextX++;
+    next_x++;
     break; // Avança uma coluna
   default:
     return false; // Se o carro estiver parado/sem direção, não há nada "à
                   // frente"
   }
   // Aborta caso a projeção saia dos limites físicos do mapa da simulação
-  if (nextX < 0 || nextX >= MAP_WIDTH || nextY < 0 || nextY >= MAP_HEIGHT) {
+  if (next_x < 0 || next_x >= MAP_WIDTH || next_y < 0 || next_y >= MAP_HEIGHT) {
     return false;
   }
 
-  bool aheadOccupied = false;
-  TRY(pthread_mutex_lock(&map[nextY][nextX].lock));
-  aheadOccupied = map[nextY][nextX].is_occupied;
-  TRY(pthread_mutex_unlock(&map[nextY][nextX].lock));
+  bool ahead_occupied = false;
+  TRY(pthread_mutex_lock(&map[next_y][next_x].lock));
+  ahead_occupied = map[next_y][next_x].is_occupied;
+  TRY(pthread_mutex_unlock(&map[next_y][next_x].lock));
 
-  return aheadOccupied;
+  return ahead_occupied;
 }
 
 /**
@@ -194,8 +194,8 @@ bool hasVehicleAhead(const Vehicle *vehicle) {
  * lateral proibida em vias de sentido único.
  *
  * @param vehicle Ponteiro constante para o veículo analisado.
- * @param targetX Coordenada X de destino pretendida.
- * @param targetY Coordenada Y de destino pretendida.
+ * @param target_x Coordenada X de destino pretendida.
+ * @param target_y Coordenada Y de destino pretendida.
  *
  * @return true
  * - Se o veículo estiver numa via estrita vertical (`^` ou `v`) e tentar
@@ -210,30 +210,30 @@ bool hasVehicleAhead(const Vehicle *vehicle) {
  * - Se o movimento seguir em linha reta respeitando o fluxo natural daquela
  * única faixa.
  */
-bool isOvertaking(const Vehicle *vehicle, int targetX, int targetY) {
+bool is_overtaking(const Vehicle *vehicle, int target_x, int target_y) {
   if (vehicle == NULL)
     return false;
 
-  int currentX = vehicle_getX(vehicle);
-  int currentY = vehicle_getY(vehicle);
+  int current_x = vehicle_get_x(vehicle);
+  int current_y = vehicle_get_y(vehicle);
 
-  TileType currentTile = map[currentY][currentX].tile;
+  TileType current_tile = map[current_y][current_x].tile;
 
   // Interseções (.) e pontos de espera (!) permitem conversões/mudanças livres
-  if (currentTile == TILE_ROAD || currentTile == TILE_WAIT) {
+  if (current_tile == TILE_ROAD || current_tile == TILE_WAIT) {
     return false;
   }
 
   // Em vias direcionais estritas (^, v, <, >), desvios laterais configuram
   // ultrapassagem proibida
-  if (currentTile == TILE_ROAD_UP || currentTile == TILE_ROAD_DOWN) {
-    if (targetX != currentX)
+  if (current_tile == TILE_ROAD_UP || current_tile == TILE_ROAD_DOWN) {
+    if (target_x != current_x)
       return true; // Tentativa de desvio para a esquerda/direita em fluxo
                    // vertical
   }
 
-  if (currentTile == TILE_ROAD_LEFT || currentTile == TILE_ROAD_RIGHT) {
-    if (targetY != currentY)
+  if (current_tile == TILE_ROAD_LEFT || current_tile == TILE_ROAD_RIGHT) {
+    if (target_y != current_y)
       return true; // Tentativa de desvio para cima/baixo em fluxo horizontal
   }
 
@@ -245,8 +245,8 @@ bool isOvertaking(const Vehicle *vehicle, int targetX, int targetY) {
  * forma segura impedindo Deadlocks.
  *
  * @param vehicle Ponteiro para o objeto do veículo que executará a ação.
- * @param targetX Coordenada X da célula destino.
- * @param targetY Coordenada Y da célula destino.
+ * @param target_x Coordenada X da célula destino.
+ * @param target_y Coordenada Y da célula destino.
  * @param clock Ponteiro constante para a estrutura do relógio global.
  *
  * @return true
@@ -269,60 +269,60 @@ bool isOvertaking(const Vehicle *vehicle, int targetX, int targetY) {
  * disputas circulares. Aborta o programa caso ocorra um erro fatal de mutex do
  * pthreads.
  */
-bool moveVehicle(Vehicle *vehicle, int targetX, int targetY,
+bool vehicle_move(Vehicle *vehicle, int target_x, int target_y,
                  const GlobalClock *clock) {
   if (vehicle == NULL || clock == NULL)
     return false;
 
   // 1. Valida restrições temporais de velocidade
-  if (!shouldMoveVehicle(vehicle, clock->currentTick)) {
+  if (!should_move_vehicle(vehicle, clock->current_tick)) {
     return false;
   }
 
   // 2. Valida restrições físicas de adjacência
-  if (!isAdjacentCell(vehicle, targetX, targetY)) {
+  if (!is_adjacent_cell(vehicle, target_x, target_y)) {
     return false;
   }
 
   // 3. Valida regras de trânsito (ultrapassagem proibida)
-  if (isOvertaking(vehicle, targetX, targetY)) {
+  if (is_overtaking(vehicle, target_x, target_y)) {
     return false;
   }
 
-  int currentX = vehicle_getX(vehicle);
-  int currentY = vehicle_getY(vehicle);
+  int current_x = vehicle_get_x(vehicle);
+  int current_y = vehicle_get_y(vehicle);
 
   // 4. Prevenção Absoluta de Deadlocks: Ordenação Baseada no Endereço de
   // Memória dos Locks. Garante que se dois veículos adjacentes tentarem
   // disputar as mesmas células invertidas, eles sempre travarão os mutexes
   // exatamente na mesma ordem cronológica.
-  if (&map[currentY][currentX].lock < &map[targetY][targetX].lock) {
-    TRY(pthread_mutex_lock(&map[currentY][currentX].lock));
-    TRY(pthread_mutex_lock(&map[targetY][targetX].lock));
+  if (&map[current_y][current_x].lock < &map[target_y][target_x].lock) {
+    TRY(pthread_mutex_lock(&map[current_y][current_x].lock));
+    TRY(pthread_mutex_lock(&map[target_y][target_x].lock));
   } else {
-    TRY(pthread_mutex_lock(&map[targetY][targetX].lock));
-    TRY(pthread_mutex_lock(&map[currentY][currentX].lock));
+    TRY(pthread_mutex_lock(&map[target_y][target_x].lock));
+    TRY(pthread_mutex_lock(&map[current_y][current_x].lock));
   }
 
-  bool moveSuccess = false;
+  bool move_success = false;
 
   // 5. Verificação em dupla checagem (Double-checked locking) dentro da seção
   // crítica
-  if (map[targetY][targetX].tile != TILE_BLOCKED &&
-      !map[targetY][targetX].is_occupied) {
+  if (map[target_y][target_x].tile != TILE_BLOCKED &&
+      !map[target_y][target_x].is_occupied) {
 
     // Alteração atômica do estado da malha viária global
-    map[currentY][currentX].is_occupied = false;
-    map[targetY][targetX].is_occupied = true;
+    map[current_y][current_x].is_occupied = false;
+    map[target_y][target_x].is_occupied = true;
 
     // Sincronização dos metadados internos do veículo correspondente
-    vehicle_setPosition(vehicle, targetX, targetY);
-    moveSuccess = true;
+    vehicle_set_position(vehicle, target_x, target_y);
+    move_success = true;
   }
 
   // 6. Liberação dos recursos na ordem inversa de aquisição
-  TRY(pthread_mutex_unlock(&map[currentY][currentX].lock));
-  TRY(pthread_mutex_unlock(&map[targetY][targetX].lock));
+  TRY(pthread_mutex_unlock(&map[current_y][current_x].lock));
+  TRY(pthread_mutex_unlock(&map[target_y][target_x].lock));
 
-  return moveSuccess;
+  return move_success;
 }

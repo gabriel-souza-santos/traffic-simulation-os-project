@@ -17,18 +17,18 @@
  * definido em 'clock.h' para evitar redundâncias no controle de tempo.
  */
 typedef struct {
-  unsigned long currentTick; /**< Tick atual da simulação. */
+  unsigned long current_tick; /**< Tick atual da simulação. */
 } GlobalClock;
 
 // ============================================================================
 // Funções de Acesso (Getters/Setters) para o tipo opaco Vehicle
 // @note A implementação destas funções DEVE ficar em 'vehicle.c'.
 // ============================================================================
-int vehicle_getX(const Vehicle *vehicle);
-int vehicle_getY(const Vehicle *vehicle);
-VehicleType vehicle_getType(const Vehicle *vehicle);
-int vehicle_getDirection(const Vehicle *vehicle);
-void vehicle_setPosition(Vehicle *vehicle, int x, int y);
+int vehicle_get_x(const Vehicle *vehicle);
+int vehicle_get_y(const Vehicle *vehicle);
+VehicleType vehicle_get_type(const Vehicle *vehicle);
+int vehicle_get_direction(const Vehicle *vehicle);
+void vehicle_set_position(Vehicle *vehicle, int x, int y);
 
 // ============================================================================
 // Regras de Movimentação e Validação de Tráfego
@@ -42,35 +42,35 @@ void vehicle_setPosition(Vehicle *vehicle, int x, int y);
  * - CAR_MEDIUM: move-se a cada 2 ticks.
  * - CAR_SLOW: move-se a cada 4 ticks.
  */
-bool shouldMoveVehicle(const Vehicle *vehicle, unsigned long currentTick);
+bool should_move_vehicle(const Vehicle *vehicle, unsigned long current_tick);
 
 /**
  * @brief Verifica se uma célula de destino é adjacente direta (não diagonal).
  */
-bool isAdjacentCell(const Vehicle *vehicle, int targetX, int targetY);
+bool is_adjacent_cell(const Vehicle *vehicle, int target_x, int target_y);
 
 /**
  * @brief Verifica se a célula de destino não está bloqueada ou ocupada.
  */
-bool isCellAvailable(int targetX, int targetY);
+bool is_cell_available(int target_x, int target_y);
 
 /**
  * @brief Analisa a célula imediatamente à frente do veículo com base na sua
  * direção.
  */
-bool hasVehicleAhead(const Vehicle *vehicle);
+bool has_vehicle_ahead(const Vehicle *vehicle);
 
 /**
  * @brief Impede mudanças de faixa ilegais (ultrapassagens) em vias de mão
  * única.
  */
-bool isOvertaking(const Vehicle *vehicle, int targetX, int targetY);
+bool is_overtaking(const Vehicle *vehicle, int target_x, int target_y);
 
 /**
  * @brief Executa a movimentação atômica do veículo utilizando ordenação de
  * locks contra deadlocks.
  */
-bool moveVehicle(Vehicle *vehicle, int targetX, int targetY,
+bool vehicle_move(Vehicle *vehicle, int target_x, int target_y,
                  const GlobalClock *clock);
 
 #endif // URBAN_TRAFFIC_VEHICLE_MOVEMENT_H
