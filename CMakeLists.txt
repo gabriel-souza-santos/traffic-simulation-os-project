@@ -9,8 +9,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 file(GLOB INCLUDE_FILES "include/*.h")
 file(GLOB SOURCE_FILES "src/*.c")
 
-add_executable(urban_traffic ${INCLUDE_FILES} ${SOURCE_FILES}
-        include/debug.h
-        src/vehicle.c)
+add_executable(urban_traffic ${INCLUDE_FILES} ${SOURCE_FILES})
 
 target_include_directories(urban_traffic PRIVATE include)
