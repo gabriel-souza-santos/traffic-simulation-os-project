@@ -5,11 +5,13 @@
  * @date 2026-06-26
  */
 
+#include <stddef.h> // para o uso de NULL
+#include <stdbool.h>
+
 #include "vehicle_movement.h"
 #include "debug.h"
 #include "map.h"
 #include "vehicle.h"
-#include <stdlib.h>
 
 /**
  * @brief Verifica se um veículo está autorizado a mover-se no tick atual com
