@@ -22,15 +22,17 @@
  * @brief Define a natureza física e a direção das células do mapa.
  *
  * Utilizado para guiar a lógica de movimentação dos veículos.
- * O código deve verificar esta informação antes de atualizar uma célula.
+ * O código deve verificar esta informação antes de atualizar a posição
+ * do veículo.
  */
 typedef enum {
-    BLOCKED,    /**< Célula intransitável (Veículos não entram). */
-    ROAD_UP,    /**< Via com sentido norte (para cima na matriz). */
-    ROAD_DOWN,  /**< Via com sentido sul (para baixo na matriz). */
-    ROAD_LEFT,  /**< Via com sentido oeste (esquerda na matriz). */
-    ROAD_RIGHT, /**< Via com sentido leste (direita na matriz). */
-    //... intersections
+    TILE_BLOCKED    = '\0', /**< Célula intransitável (Veículos não entram). */
+    TILE_ROAD_UP    = '^',  /**< Via com sentido norte (para cima na matriz). */
+    TILE_ROAD_DOWN  = 'v',  /**< Via com sentido sul (para baixo na matriz). */
+    TILE_ROAD_LEFT  = '<',  /**< Via com sentido oeste (esquerda na matriz). */
+    TILE_ROAD_RIGHT = '>',  /**< Via com sentido leste (direita na matriz). */
+    TILE_ROAD       = '.',  /**< Via sem sentido definido (usado em interseções) */
+    TILE_WAIT       = '!',  /**< Célula que indica uma espera */
 } TileType;
 
 
@@ -49,11 +51,18 @@ typedef struct {
 
 
 /**
- * @brief Matriz bidimensional global representando a cidade.
- * * Todas as threads de veículos interagem com este mapa simultaneamente.
+ * @brief Matriz bidimensional global representando o mapa.
+ *
+ * Todas as threads de veículos interagem com este mapa simultaneamente.
  * É necessário usar os locks de cada célula para fazer a travessia de forma
  * segura e evitar Race Conditions.
  */
 MapCell map[MAP_HEIGHT][MAP_WIDTH];
+
+// TODO: Função para carregar o mapa armazenado em um arquivo externo
+
+// TODO: Função para limpar a memóri alocada para o mapa
+
+// TODO: Funções para controlar as interseccões do mapa (semáforo)
 
 #endif //URBAN_TRAFFIC_MAP_H
