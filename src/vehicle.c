@@ -1,26 +1,32 @@
 /**
  * @file vehicle.c
- * @brief Implementação das regras de deslocamento sincronizado dos veículos.
+ *
+ * @brief Implementação do ciclo de vida e regras de deslocamento sincronizado dos veículos.
+ *
+ * Responsáveis: leticia-software-engineer e sudo-invers
  *
  * @date 2026-06-25
  */
 
+
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <pthread.h>
 
 #include "vehicle.h"
 #include "clock.h"
 #include "debug.h"
 #include "map.h"
+#include "../include/debug.h"
 
 
 struct Vehicle {
-    int id;
-    int x;
-    int y;
-    int direction;
-    VehicleType type;
+    int id;             // ID do veículo
+    int x;              // Posição atual no eixo X
+    int y;              // Posição atual no eixo Y
+    int direction;      // Direção atual
+    VehicleType type;   // Tipo (AMBULANCE, CAR_FAST, CAR_MEDIUM, CAR_SLOW)
 };
 
 
@@ -349,15 +355,65 @@ bool update_position(Vehicle *vehicle, int target_x, int target_y,
 
 
 Vehicle *vehicle_new(intptr_t id) {
-    // TODO
+    // Aloca e inicializa as propriedades de um veículo.
+    // CRITÉRIO: Cada veículo possui identificador, posição, direção, velocidade, tipo, e rota.
+
+    Vehicle *vehicle = malloc(sizeof(Vehicle)); // a memoria é alocada dinamicamente e corresponde ao struct Vehicle
+    CHECK_NULL(vehicle);
+
+    vehicle->id = (int)id; // dá um id para o veículo para que ele possa ser identificado de maneira única
+
+    //ID 0 é sempre a ambulância.
+    if (id == 0) {
+        vehicle->type = AMBULANCE;
+    }
+
+    /*
+     *A sequência de condicoes else if a seguir garante a presença de pelo menos um carro com
+     * cada velocidade indicada no relógio global, pois se mantivéssemos aleatoriamente em todos os carros
+     * poderia ocorrer de em sorteios especificos todos os carros terem a mesma velocidade.
+     */
+    else if (id == 1) {
+        // ID 1 é garantido como Carro Rápido
+        vehicle->type = CAR_FAST;
+    }
+    else if (id == 2) {
+        // ID 2 é garantido como Carro Médio
+        vehicle->type = CAR_MEDIUM;
+    }
+    else if (id == 3) {
+        // ID 3 é garantido como Carro Lento
+        vehicle->type = CAR_SLOW;
+    }
+    else {
+        // Distribui os demais carros entre as velocidades
+        vehicle->type = (VehicleType)((rand() % 3) + 2);
+    }
+
+    // Posições iniciais geradas em locais válidos de partida na pista
+    vehicle->x = 2 + ((int)id * 2);
+    vehicle->y = 2;
+    vehicle->direction = ROAD_RIGHT; // Direção inicial padrão da pista de partida
+
+    // Atualiza o estado na matriz global do mapa para ocupar o espaço inicial [cite: 23, 39]
+    map[vehicle->y_position][vehicle->x_position].is_occupied = true;
+
+    return vehicle;
 }
 
 
 void vehicle_destroy(Vehicle *vehicle) {
-    // TODO
+    // Libera a memória alocada para o contexto do veículo.
+    CHECK_NULL(vehicle);
+    free(vehicle);
 }
 
 
 void *vehicle_update(void *vehicle) {
+    // Rotina principal executada por cada thread de veículo.
+    // CRITÉRIOS: Respeitar direção da via, não atravessar paredes (BLOCKED) e não sair do mapa.
+
     // TODO
+
+    return NULL;
 }
