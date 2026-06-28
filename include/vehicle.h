@@ -67,7 +67,7 @@ Vehicle *vehicle_new(intptr_t id);
  * @brief Destrói um veículo e libera seus recursos.
  * @param vehicle Ponteiro genérico (void*) para o veículo a ser destruído.
  */
-void vehicle_destroy(void *vehicle);
+void vehicle_destroy(Vehicle *vehicle);
 
 /**
  * @brief Rotina principal executada pela thread de cada veículo.
