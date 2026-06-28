@@ -18,7 +18,6 @@
 #include "clock.h"
 #include "debug.h"
 #include "map.h"
-#include "../include/debug.h"
 
 
 struct Vehicle {
