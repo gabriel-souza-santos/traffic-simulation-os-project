@@ -283,7 +283,7 @@ Coord map_reserve_spawn_point(Map *map) {
             spawn_point.y = (int)y;
             Tile *tile = tile_at(map, spawn_point);
 
-            if (tile->type == is_tile_road(tile->type) && !tile->is_occupied) {
+            if (is_valid_road(tile->type) && !tile->is_occupied) {
                 tile->is_occupied = true;
 
                 pthread_mutex_unlock(&map->mutex);
