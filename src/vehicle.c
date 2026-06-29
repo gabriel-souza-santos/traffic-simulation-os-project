@@ -164,27 +164,7 @@ static bool is_adjacent(const Map *map, const Vehicle *vehicle, const Coord targ
 static bool has_vehicle_ahead(Map *map, const Vehicle *vehicle) {
     if (!vehicle || !map) return false;
 
-    // Variaveis temporarias, para calcular a posição da frente do veículo.
-    Coord next_position = vehicle->position;
-
-    // Projetar a coordenada no mapa baseada na orientação atual
-    switch (vehicle->direction) {
-        case DIRECTION_UP:
-            next_position.y--;
-            break;          // Sobe uma linha na matriz
-        case DIRECTION_DOWN:
-            next_position.y++;
-            break;          // Desce uma linha na matriz
-        case DIRECTION_LEFT:
-            next_position.x--;
-            break;          // Recua uma coluna
-        case DIRECTION_RIGHT:
-            next_position.x++;
-            break;          // Avança uma coluna
-        default:
-            return false;   // Se o carro estiver parado/sem direção, não há nada "à
-                            // frente"
-    }
+    const Coord next_position = find_next_position(vehicle);
 
     // Aborta caso a projeção saia dos limites físicos do mapa da simulação
     if (map_is_within_bounds(map, next_position) == false) {
