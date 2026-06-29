@@ -12,6 +12,7 @@
 #define URBAN_TRAFFIC_VEHICLE_H
 
 #include <stdint.h>
+#include "map.h"
 
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
 #define VEHICLE_COUNT 10 //valores permitidos: [10-20]
@@ -59,9 +60,10 @@ typedef struct Vehicle Vehicle;
 /**
  * @brief Aloca e inicializa um novo veículo.
  * @param id Identificador único numérico (cast para intptr_t para facilitar uso em threads).
+ * @param map
  * @return Um ponteiro para a nova instância de Vehicle, ou aborta via CHECK_NULL em caso de falha.
  */
-Vehicle *vehicle_new(intptr_t id);
+Vehicle *vehicle_new(Map *map, int id);
 
 /**
  * @brief Destrói um veículo e libera seus recursos.
