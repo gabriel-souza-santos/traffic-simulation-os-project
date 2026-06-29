@@ -238,7 +238,11 @@ bool map_is_occupied(Map *map, const Coord position) {
     }
 
     pthread_mutex_lock(&map->mutex);
-    const bool is_occupied = tile_at(map, position)->is_occupied;
+    const Tile *tile = tile_at(map, position);
+
+    const bool is_occupied = tile->is_occupied ||
+                             tile->type == TILE_BLOCKED;
+
     pthread_mutex_unlock(&map->mutex);
 
     return is_occupied;
