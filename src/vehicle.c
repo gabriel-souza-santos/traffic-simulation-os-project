@@ -39,6 +39,34 @@ static Direction get_direction_from_tile(const TileType tile) {
 
 
 /**
+ * @internal
+ *
+ * @brief Projetar a coordenada no mapa baseada na orientação atual
+ *
+ * Calcula a próxima posisão com base na direção e posição
+ * atual do veículo.
+ *
+ * @warning Não faz verificações de limites do mapa.
+ *
+ * @param vehicle
+ * @return
+ */
+static Coord find_next_position(const Vehicle *vehicle) {
+    Coord next = vehicle->position;
+
+    switch (vehicle->direction) {
+        case DIRECTION_UP:      next.y--;   break;
+        case DIRECTION_DOWN:    next.y++;   break;
+        case DIRECTION_LEFT:    next.x--;   break;
+        case DIRECTION_RIGHT:   next.x++;   break;
+        default:                            break;
+    }
+
+    return next;
+}
+
+
+/**
  * @brief Verifica se um veículo está autorizado a mover-se no tick atual com
  * base na sua velocidade.
  *
