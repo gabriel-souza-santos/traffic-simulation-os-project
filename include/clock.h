@@ -102,6 +102,6 @@ void clock_signal(Clock *clock, size_t last_tick);
  *
  * @return O número exato do tick atual da simulação.
  */
-size_t clock_get_tick(const Clock *clock);
+size_t clock_get_tick(Clock *clock);
 
 #endif //URBAN_TRAFFIC_CLOCK_H
