@@ -23,10 +23,11 @@
  * de uma estrutura leve (8 bytes em sistemas de 64-bit).
  */
 typedef struct {
-    int x; /**< Posição horizontal (coluna da matriz). */
-    int y; /**< Posição vertical (linha da matriz). */
+    int x;  /**< Posição horizontal (coluna da matriz). */
+    int y;  /**< Posição vertical (linha da matriz). */
 } Coord;
 
+/** @brief Valor auxiliar para representar coordenadas inválidas */
 #define NULL_COORD ((Coord){-1, -1})
 
 /**
@@ -49,11 +50,9 @@ typedef enum {
 
 /**
  * @brief Estrutura opaca para o mapa, para reforçar o encapsulamento.
- * * O controle de concorrência fica ocultado dentro da implementação
- * deste objeto no arquivo-fonte.
  *
  * Deve ser sempre usada por meio de um ponteiro:
- * @code
+ * @code{.c}
  * Map *map;
  * @endcode
  */
@@ -63,7 +62,7 @@ typedef struct Map Map;
 /**
  * @brief Aloca recursos, inicializa recursos internos e carrega o mapa.
  *
- * * O mapa é construído em memória a partir de um arquivo de configuração
+ * O mapa é construído em memória a partir de um arquivo de configuração
  * conforme os símbolos definidos em TileType. Qualquer caractere desconhecido
  * é tratado como TILE_BLOCKED.
  * * @see TileType
@@ -150,18 +149,17 @@ bool map_is_occupied(Map *map, Coord position);
 
 
 /**
- * @brief Realiza a transferência síncrona e atômica de um ocupante entre duas células.
+ * @brief Realiza a transferência de um ocupante entre duas células.
  *
- * Esta é a função central de concorrência. Usa mecanismos internos para prevenção de deadlocks.
- * Realiza uma dupla checagem (double-checked locking) do estado de destino e, se livre,
- * limpa a ocupação da célula antiga e ativa a ocupação na nova célula de destino.
+ * Usa mecanismos internos para prevenção de deadlocks. Realiza checagem do estado de
+ * destino e, se livre, limpa a ocupação da célula antiga e ativa a ocupação na nova
+ * célula de destino.
  *
- * @param map Ponteiro para o objeto mutável do mapa.
+ * @param map Ponteiro para o objeto do mapa.
  * @param from Coordenada de origem (posição atual do veículo).
  * @param to Coordenada de destino pretendida.
- * @return true Se a movimentação foi validada, executada de forma atômica e bem-sucedida.
- * @return false Se a célula de destino foi ocupada por outra thread concorrente no
- * interregno da trava ou se era inválida.
+ * @return true Se a movimentação foi validada.
+ * @return false Se a tentativa de movimentação é considerada inválida.
  */
 bool map_transfer_occupant(Map *map, Coord from, Coord to);
 
@@ -170,8 +168,8 @@ bool map_transfer_occupant(Map *map, Coord from, Coord to);
  * @brief Procura uma célula livre no mapa e a reserva.
  *
  * Varre a malha viária em busca de uma célula transitável e que não esteja ocupada.
- * Se encontrar, altera o estado da célula para ocupada de forma atômica e retorna a
- * sua coordenada.
+ * Se encontrar, altera o estado da célula para ocupada e retorna a sua coordenada.
+ * É projetada para ser usada exclusivamente na criação de um veículo.
  *
  * @param map Ponteiro para o objeto mutável do mapa.
  * @return A coordenada contendo a posição reservada.

@@ -3,7 +3,8 @@
  *
  * @brief Implementação do ciclo de vida e regras de deslocamento sincronizado dos veículos.
  *
- * Responsáveis: leticia-software-engineer e sudo-invers
+ * @author José Dhonatan
+ * @author Leticía Dias
  *
  * @date 2026-06-25
  */
@@ -19,16 +20,31 @@
 #include "debug.h"
 #include "map.h"
 
-
+/**
+ * @internal
+ * @brief Representa o estado de um veículo num dado instante da simulação.
+ */
 struct Vehicle {
-    int id;             // ID do veículo
-    Coord position;     // Posição atual
-    Direction direction;// Direção atual
-    VehicleType type;   // Tipo (AMBULANCE, CAR_FAST, CAR_MEDIUM, CAR_SLOW)
+    int id;              /**< Identificador único do veículo. */
+    Coord position;      /**< Posição atual na malha do mapa. */
+    Direction direction; /**< Direção de movimento atual. */
+    VehicleType type;    /**< Tipo do veículo (define velocidade e prioridade). */
 };
 
-static Direction get_direction_from_tile(const TileType tile) {
-    switch (tile) {
+
+/**
+ * @internal
+ * @brief Deriva a direção de movimento a partir do tipo de tile.
+ *
+ * Mapeia diretamente os quatro tipos de via direcional (TILE_ROAD_UP/
+ * DOWN/LEFT/RIGHT) para o Direction correspondente.
+ *
+ * @param tile_type Tipo de tile a ser interpretado.
+ * @return A direção correspondente, ou DIRECTION_NONE se o tile não for
+ *         uma via com sentido definido (ex: TILE_ROAD, TILE_WAIT, TILE_BLOCKED).
+ */
+static Direction find_direction_from_tile(const TileType tile_type) {
+    switch (tile_type) {
         case TILE_ROAD_UP:      return DIRECTION_UP;
         case TILE_ROAD_DOWN:    return DIRECTION_DOWN;
         case TILE_ROAD_LEFT:    return DIRECTION_LEFT;
@@ -40,16 +56,23 @@ static Direction get_direction_from_tile(const TileType tile) {
 
 /**
  * @internal
+ * @brief Projeta a coordenada seguinte no mapa com base na direção atual.
  *
- * @brief Projetar a coordenada no mapa baseada na orientação atual
+ * Calcula a próxima posição aplicando um deslocamento de uma unidade a
+ * partir de @p vehicle->position, na direção indicada por @p vehicle->direction.
+ * Se a direção for @c DIRECTION_NONE (ou outro valor não mapeado), retorna a
+ * própria posição atual sem alteração.
  *
- * Calcula a próxima posisão com base na direção e posição
- * atual do veículo.
+ * @param vehicle Veículo cuja posição e direção atuais servem de base
+ *                para a projeção.
+ * @return A coordenada adjacente na direção do veículo, ou a posição
+ *         atual inalterada caso a direção seja inválida/nula.
  *
- * @warning Não faz verificações de limites do mapa.
+ * @warning Não faz verificação de limites do mapa; a coordenada retornada
+ *          pode estar fora dos limites da malha. A responsabilidade de
+ *          validar é do chamador.
  *
- * @param vehicle
- * @return
+ * @see map_is_within_bounds()
  */
 static Coord find_next_position(const Vehicle *vehicle) {
     Coord next = vehicle->position;
@@ -67,11 +90,12 @@ static Coord find_next_position(const Vehicle *vehicle) {
 
 
 /**
+ * @internal
  * @brief Verifica se um veículo está autorizado a mover-se no tick atual com
  * base na sua velocidade.
  *
  * @param vehicle Ponteiro constante para o veículo analisado.
- * @param clock O relógio da simulação.
+ * @param clock Relógio global, usado para consultar o tick atual.
  *
  * @return true
  * - Se o veículo for uma ambulância (AMBULANCE) ou carro rápido (CAR_FAST),
@@ -85,33 +109,27 @@ static Coord find_next_position(const Vehicle *vehicle) {
  * não forem satisfeitas.
  */
 static bool should_move_now(const Vehicle *vehicle, const Clock *clock) {
-    if (vehicle == NULL)
-        return false;
+    if (!vehicle) return false;
 
     const size_t current_tick = clock_get_tick(clock);
 
-    // Vai verificar qual tick estamos.
     switch (vehicle->type) {
-        case AMBULANCE:
-        case CAR_FAST:
-            return true;
-        case CAR_MEDIUM:
-            return current_tick % 2 == 0;
-        case CAR_SLOW:
-            return current_tick % 4 == 0;
-        default:
-            return false;
+        case AMBULANCE:     return true;
+        case CAR_FAST:      return true;
+        case CAR_MEDIUM:    return current_tick % 2 == 0;
+        case CAR_SLOW:      return current_tick % 4 == 0;
+        default:            return false;
     }
 }
 
 
 /**
- * @brief Verifica se a célula destino é um vizinho ortogonal direto (adjacente
- * não diagonal).
+ * @internal
+ * @brief Verifica se a célula destino é um vizinho ortogonal direto.
  *
- * @param map
- * @param vehicle Ponteiro constante para o veículo que pretende mover-se.
- * @param target
+ * @param map Mapa usado para validar os limites do destino.
+ * @param vehicle Veículo cuja posição atual serve de referência.
+ * @param target Coordenada candidata a destino.
  *
  * @return true
  * - Se o destino estiver exatamente a 1 unidade de distância ortogonal (Cima,
@@ -143,11 +161,12 @@ static bool is_adjacent(const Map *map, const Vehicle *vehicle, const Coord targ
 
 
 /**
+ * @internal
  * @brief Projeta a trajetória frontal do veículo e checa se há um obstáculo
  * móvel imediatamente à frente.
  *
- * @param vehicle Ponteiro constante para o veículo cuja frente será analisada.
- * @param map
+ * @param map Mapa usado para consultar ocupação da célula frontal.
+ * @param vehicle Veículo cuja direção atual define a célula a ser checada.
  *
  * @return true
  * - Se a célula imediatamente à frente (com base na direção atual do veículo)
@@ -157,7 +176,8 @@ static bool is_adjacent(const Map *map, const Vehicle *vehicle, const Coord targ
  * - Se o veículo estiver sem direção mapeada ou parado (`default` no switch).
  * - Se a célula à frente estiver fora das dimensões limítrofes do mapa.
  * - Se a célula à frente estiver totalmente desocupada.
- * * @note Assim como `is_cell_available`, esta função faz uso seguro de exclusão
+ *
+ * @note Assim como `is_cell_available`, esta função faz uso seguro de exclusão
  * mútua (`lock`) e pode abortar o programa via macro `TRY` em caso de falha de
  * concorrência com pthreads.
  */
@@ -176,18 +196,19 @@ static bool has_vehicle_ahead(Map *map, const Vehicle *vehicle) {
 
 
 /**
- * @brief Determina se o movimento pretendido caracteriza uma ultrapassagem
+ * @internal
+ * @brief Determina se o movimento pretendido caracteriza ultrapassagem
  * lateral proibida em vias de sentido único.
- *
- * @param map
- * @param vehicle Ponteiro constante para o veículo analisado.
- * @param target
+ * ...
+ * @param map Mapa usado para consultar o tipo da célula atual do veículo.
+ * @param vehicle Veículo cuja via atual será analisada.
+ * @param target Coordenada de destino pretendida.
  *
  * @return true
  * - Se o veículo estiver numa via estrita vertical (`^` ou `v`) e tentar
- * mover-se para os lados (`targetX != currentX`).
+ * mover-se para os lados.
  * - Se o veículo estiver numa via estrita horizontal (`<` ou `>`) e tentar
- * mover-se para cima/baixo (`targetY != currentY`).
+ * mover-se para cima/baixo.
  * @return false
  * - Se o ponteiro do veículo for inválido (`NULL`).
  * - Se o veículo estiver em cruzamentos abertos (`TILE_ROAD`) ou pontos de
@@ -226,33 +247,25 @@ static bool is_overtaking(const Map *map, const Vehicle *vehicle, const Coord ta
 
 
 /**
- * @brief Orquestra e executa o deslocamento de um veículo no mapa de
- * forma segura impedindo Deadlocks.
+ * @internal
+ * @brief Orquestra a tentativa de deslocamento de um veículo no mapa.
  *
- * @param map
- * @param vehicle Ponteiro para o objeto do veículo que executará a ação.
- * @param target
- * @param clock Ponteiro constante para a estrutura do relógio global.
+ * Valida, em sequência: permissão de movimento no tick atual (velocidade),
+ * adjacência do destino, e regras de ultrapassagem. Se todas as validações
+ * passarem, delega a transferência atômica de ocupação para
+ * map_transfer_occupant, que internamente garante exclusão mútua via o
+ * mutex global do mapa.
  *
- * @return true
- * - Se todas as validações (velocidade, adjacência, regras de trânsito)
- * passarem com sucesso, os locks forem adquiridos e a célula estiver livre. O
- * mapa global e a posição do veículo são alterados de forma atómica.
- * @return false
- * - Se o veículo não puder mover-se neste ciclo específico (`should_move_now`
- * falhar).
- * - Se os ponteiros `vehicle` ou `clock` forem nulos.
- * - Se o destino não for adjacente (`is_adjacent_cell` falhar).
- * - Se o movimento violar regras de ultrapassagem (`is_overtaking` retornar
- * verdadeiro).
- * - Se, após trancar a região crítica (Double-Check), a célula destino tiver
- * mudado de estado e se tornado ocupada ou bloqueada por outra thread
- * concorrente.
- * * @note Esta função bloqueia a execução da thread até adquirir
- * simultaneamente os locks da célula atual e da célula destino. A ordenação por
- * endereço de memória (`&map... < &map...`) impede a ocorrência de Deadlocks em
- * disputas circulares. Aborta o programa caso ocorra um erro fatal de mutex do
- * pthreads.
+ * @note A prevenção de deadlock neste módulo decorre de map_transfer_occupant
+ *       usar um único mutex global (sem aquisição de múltiplos locks), não de
+ *       ordenação de locks por endereço de memória.
+ *
+ * @param map Mapa onde o veículo está inserido.
+ * @param vehicle Veículo que tentará se mover.
+ * @param target Coordenada de destino pretendida.
+ * @param clock Relógio global, usado para validar a velocidade do veículo.
+ * @return true Se o movimento foi validado e executado com sucesso.
+ * @return false Se qualquer validação falhar ou a célula destino estiver indisponível.
  */
 static bool update_position(Map *map, Vehicle *vehicle,
     const Coord target, const Clock *clock) {
@@ -260,17 +273,17 @@ static bool update_position(Map *map, Vehicle *vehicle,
     if (vehicle == NULL || clock == NULL)
         return false;
 
-    // 1. Valida restrições temporais de velocidade
+    // Valida restrições temporais de velocidade
     if (!should_move_now(vehicle, clock)) {
         return false;
     }
 
-    // 2. Valida restrições físicas de adjacência
+    // Valida restrições físicas de adjacência
     if (!is_adjacent(map, vehicle, target)) {
         return false;
     }
 
-    // 3. Valida regras de trânsito (ultrapassagem proibida)
+    // Valida regras de trânsito (ultrapassagem proibida)
     if (is_overtaking(map, vehicle, target)) {
         return false;
     }
@@ -292,7 +305,20 @@ static bool update_position(Map *map, Vehicle *vehicle,
  * ============================================================================
  */
 
-
+/**
+ * @internal
+ * @brief Implementação da criação de um veículo.
+ *
+ * Atribui o tipo do veículo de forma determinística para os 4 primeiros IDs
+ * (garantindo ao menos uma ambulância e um carro de cada velocidade), e
+ * aleatória para os demais. Reserva um ponto de spawn livre via
+ * map_reserve_spawn_point e deriva a direção inicial a partir do tipo de
+ * tile ocupado.
+ *
+ * @warning Retorna NULL (liberando a memória já alocada) se não houver
+ *          spawn point livre, ou se o tile reservado não mapear para uma
+ *          direção válida.
+ */
 Vehicle *vehicle_new(Map *map, const int id) {
     // Aloca e inicializa as propriedades de um veículo.
     // CRITÉRIO: Cada veículo possui identificador, posição, direção, velocidade, tipo, e rota.
@@ -331,7 +357,7 @@ Vehicle *vehicle_new(Map *map, const int id) {
     }
 
     const TileType tile = map_get_tile_type(map, vehicle->position);
-    vehicle->direction = get_direction_from_tile(tile);
+    vehicle->direction = find_direction_from_tile(tile);
 
     if (vehicle->direction == DIRECTION_NONE) {
         free(vehicle);
@@ -342,6 +368,10 @@ Vehicle *vehicle_new(Map *map, const int id) {
 }
 
 
+/**
+ * @internal
+ * @brief Implementação da liberação dos recursos do veículo.
+ */
 void vehicle_destroy(Vehicle *vehicle) {
     // Libera a memória alocada para o contexto do veículo.
     CHECK_NULL(vehicle);
@@ -352,6 +382,7 @@ void vehicle_destroy(Vehicle *vehicle) {
 void *vehicle_update(void *vehicle) {
     // Rotina principal executada por cada thread de veículo.
     // CRITÉRIOS: Respeitar direção da via, não atravessar paredes (BLOCKED) e não sair do mapa.
+    // Deve chamar clock_signal ao finalizar
 
     // TODO
 
