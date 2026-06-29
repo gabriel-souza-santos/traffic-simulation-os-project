@@ -44,8 +44,21 @@ void clock_destroy(Clock *clock) {
 }
 
 
-size_t clock_get_tick(const Clock *clock) {
-    return clock->current_tick;
+/**
+ * @internal
+ * @brief Implementação da leitura do tick atual.
+ *
+ * Protege a leitura de current_tick com o mesmo mutex usado por
+ * clock_update na escrita, evitando leitura concorrente não sincronizada.
+ */
+size_t clock_get_tick(Clock *clock) {
+    CHECK_NULL(clock);
+
+    pthread_mutex_lock(&clock->mutex);
+    const size_t current_tick = clock->current_tick;
+    pthread_mutex_unlock(&clock->mutex);
+
+    return current_tick;
 }
 
 
