@@ -213,6 +213,7 @@ size_t map_get_height(const Map *map) {
 
 TileType map_get_tile_type(const Map *map, const Coord position) {
     if (!map) return TILE_BLOCKED;
+    if (!map_is_within_bounds(map, position)) return TILE_BLOCKED;
     return tile_at(map, position)->type;
 }
 
