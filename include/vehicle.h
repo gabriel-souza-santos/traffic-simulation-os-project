@@ -12,6 +12,7 @@
 #define URBAN_TRAFFIC_VEHICLE_H
 
 #include <stdint.h>
+#include "map.h"
 
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
 #define VEHICLE_COUNT 10 //valores permitidos: [10-20]
@@ -53,35 +54,36 @@ typedef enum {
  * @brief Tipo opaco que representa um veículo e o seu contexto interno.
  * Oculta os detalhes de implementação das outras partes do código para
  * garantir o encapsulamento seguro.
+ *
+ * Deve ser instanciado sempre por meio de um ponteiro:
+ * @code
+ * Vehicle *vehicle;
+ * @endcode
  */
 typedef struct Vehicle Vehicle;
 
 /**
  * @brief Aloca e inicializa um novo veículo.
- * @param id Identificador único numérico (cast para intptr_t para facilitar uso em threads).
- * @return Um ponteiro para a nova instância de Vehicle, ou aborta via CHECK_NULL em caso de falha.
+ *
+ * @param map Mapa onde o veículo será inserido; usado para reservar um
+ *            ponto de spawn livre.
+ * @param id Identificador único do veículo. Os quatro primeiros ids (0-3)
+ *           recebem tipos fixos (garantindo ao menos uma ambulância e um
+ *           carro de cada velocidade); os demais recebem tipo aleatório.
+ * @return Um ponteiro para a nova instância de Vehicle, ou `NULL` se não
+ *         houver spawn point livre no mapa ou se a direção inicial
+ *         derivada do tile reservado for inválida.
  */
-Vehicle *vehicle_new(intptr_t id);
+Vehicle *vehicle_new(Map *map, int id);
 
 /**
  * @brief Destrói um veículo e libera seus recursos.
- * @param vehicle Ponteiro genérico (void*) para o veículo a ser destruído.
+ * @param vehicle Ponteiro para o veículo a ser destruído.
  */
 void vehicle_destroy(Vehicle *vehicle);
 
 /**
  * @brief Rotina principal executada pela thread de cada veículo.
- *
- * @details Esta função encapsula toda a lógica de física e concorrência do veículo.
- * O seu fluxo de execução em loop consiste em:
- * 1. Esperar o relógio (`clock_signal`) e os semáforos atualizarem.
- * 2. Verificar se o tick atual corresponde à sua velocidade (VehicleType).
- * 3. Calcular a próxima célula baseada em sua `Direction`.
- * 4. Verificar validade (se não é parede ou fim do mapa).
- * 5. Tentar adquirir o lock da próxima célula (`is_occupied`). Se falhar ou estiver ocupada, cancela o movimento.
- * 6. Se livre, move-se marcando o tile destino como ocupado e liberando o tile anterior.
- * 7. Atualiza sua direção interna caso esteja em um cruzamento ou curva.
- * 8. Chama `clock_signal` para sinalizar conclusão e dormir até o próximo tick.
  *
  * @param vehicle Ponteiro genérico (void*) que deve ser feito o cast para (Vehicle*).
  * @return NULL, respeitando a assinatura padrão da API Pthreads.
