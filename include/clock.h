@@ -12,7 +12,7 @@
 #ifndef URBAN_TRAFFIC_CLOCK_H
 #define URBAN_TRAFFIC_CLOCK_H
 
-#include <stddef.h> // Necessário para o uso de 'size_t'
+#include <stddef.h>
 
 /**
  * @brief Número total de ticks da simulação.
@@ -81,18 +81,17 @@ void *clock_update(void *clock);
  * tick maior que o tick informado.
  *
  * * Exemplo de uso:
- * @code
+ * @code{.c}
  * Clock *clock = clock_new();
- * * ... dentro da thread do veículo ...
- * * size_t tick = clock_get_tick(clock);
- * // ... executa o movimento do carro no tick atual ...
- * clock_signal(clock, tick); // Dorme até o tick mudar
+ *
+ * // ... dentro da thread do veículo ...
+ * clock_signal(clock, clock_get_tick(clock)); // Dorme até o tick mudar
  * @endcode
  *
  * @param clock Ponteiro para o relógio do sistema.
- * @param last_tick O valor do tick no qual a thread acabou de finalizar seu processamento.
+ * @param tick O valor do tick no qual a thread acabou de finalizar o seu processamento.
  */
-void clock_signal(Clock *clock, size_t last_tick);
+void clock_signal(Clock *clock, size_t tick);
 
 
 /**
@@ -102,6 +101,6 @@ void clock_signal(Clock *clock, size_t last_tick);
  *
  * @return O número exato do tick atual da simulação.
  */
-size_t clock_get_tick(const Clock *clock);
+size_t clock_get_tick(Clock *clock);
 
 #endif //URBAN_TRAFFIC_CLOCK_H
