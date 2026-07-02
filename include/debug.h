@@ -126,8 +126,10 @@ void debug_log(
  * TRY apenas executa a expressão silenciosamente e CHECK_NULL é ignorada.
  */
 
-#define TRY(expr_) (expr_)
-#define CHECK_NULL(ptr_) (ptr_)
+#define TRY(expr)           if (expr) exit(EXIT_FAILURE);
+#define LOG(...)            do { } while (0)
+#define LOG_IF(cond, ...)   do { } while (0)
+#define CHECK_NULL(ptr)     do { } while (0)
 
 #endif //#if DEBUG #else
 
