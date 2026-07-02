@@ -59,7 +59,11 @@ struct Map {
  * @see map_is_within_bounds()
  */
 static Tile* tile_at(const Map *map, const Coord position) {
-    if (!map) return NULL;
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return NULL;
+    }
+
     const size_t index = position.y * map->width + position.x;
     return &map->tiles[index];
 }
@@ -104,7 +108,13 @@ static bool is_valid_road(const TileType tile_type) {
  * @param[out] out_height Altura detectada.
  */
 static void find_dimensions(FILE *file, size_t *out_width, size_t *out_height) {
-    if (!file || !out_width || !out_height) return;
+    if (!file || !out_width || !out_height) {
+        LOG("Error: NULL pointer encountered.\n"
+            "Passed Arguments:\n"
+            "file: %p,\nout_width: %p,\nout_height: %p.",
+            file, out_width, out_height);
+        return;
+    }
 
     int symbol;
     int current_width = 0;
@@ -148,7 +158,10 @@ static void find_dimensions(FILE *file, size_t *out_width, size_t *out_height) {
  * @param file Arquivo de onde os símbolos serão lidos.
  */
 static void fill_tiles(const Map *map, FILE *file) {
-    if (!map) return;
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return;
+    }
 
     int symbol;
     Coord current_position = {0, 0};
@@ -211,11 +224,14 @@ static void fill_tiles(const Map *map, FILE *file) {
  *          manual e retorno de NULL.
  */
 Map *map_new(const char *file_path) {
-    if (!file_path) return NULL;
+    if (!file_path) {
+        LOG("Error: file path not provided.");
+        return NULL;
+    }
 
     FILE *file = fopen(file_path, "r");
     if (!file) {
-        // TODO: Tratar erro de abertura do arquivo
+        LOG("Error: failed to open file '%s'.", file_path);
         return NULL;
     }
 
@@ -226,6 +242,11 @@ Map *map_new(const char *file_path) {
 
     // Arquivo vazio/inválido
     if (width == 0 || height == 0) {
+        LOG("Error: width or height is zero."
+            "File '%s' contains invalid map dimensions:\n"
+            "width: %zu,\n height: %zu.\n"
+            "Width and Height are calculated from valid characters.",
+            file_path, width, height);
         fclose(file);
         return NULL;
     }
@@ -233,6 +254,7 @@ Map *map_new(const char *file_path) {
     // Alocação da estrutura do Map
     Map *map = malloc(sizeof(Map));
     if (!map) {
+        LOG("Error: failed to allocate memory for 'map'.");
         fclose(file);
         return NULL;
     }
@@ -241,6 +263,7 @@ Map *map_new(const char *file_path) {
     map->height = height;
 
     if (pthread_mutex_init(&map->mutex, NULL) != 0) {
+        LOG("Error: failed to initialize 'map->mutex'.");
         free(map);
         fclose(file);
         return NULL;
@@ -253,6 +276,7 @@ Map *map_new(const char *file_path) {
      */
     map->tiles = calloc(width * height, sizeof(Tile));
     if (!map->tiles) {
+        LOG("Error: failed to allocate memory for 'map->tiles'.");
         free(map);
         fclose(file);
         return NULL;
@@ -273,11 +297,18 @@ Map *map_new(const char *file_path) {
  * e verificação do retorno de pthread_mutex_destroy.
  */
 void map_destroy(Map *map) {
-    CHECK_NULL(map);
-    CHECK_NULL(map->tiles);
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return;
+    }
+
+    if (!map->tiles) {
+        free(map);
+        LOG("Error: 'map->tiles' is NULL.");
+        return;
+    }
 
     TRY(pthread_mutex_destroy(&map->mutex));
-
     free(map->tiles);
     free(map);
 }
@@ -316,7 +347,10 @@ size_t map_get_height(const Map *map) {
  * já que x/y negativos se tornam valores muito altos ao serem convertidos.
  */
 bool map_is_within_bounds(const Map *map, const Coord position) {
-    if (!map) return false;
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return false;
+    }
 
     return position.x >= 0 &&
            position.y >= 0 &&
@@ -335,7 +369,11 @@ bool map_is_within_bounds(const Map *map, const Coord position) {
  *
  */
 TileType map_get_tile_type(const Map *map, const Coord position) {
-    if (!map) return TILE_BLOCKED;
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return TILE_BLOCKED;
+    }
+
     if (!map_is_within_bounds(map, position)) return TILE_BLOCKED;
     return tile_at(map, position)->type;
 }
@@ -352,7 +390,10 @@ TileType map_get_tile_type(const Map *map, const Coord position) {
  * @see fill_tiles()
  */
 bool map_is_blocked(const Map *map, const Coord position) {
-    if (!map) return false;
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return false;
+    }
     return tile_at(map, position)->type == TILE_BLOCKED;
 }
 
@@ -366,20 +407,22 @@ bool map_is_blocked(const Map *map, const Coord position) {
  * mutex global do mapa para ler @c tile->is_occupied de forma thread-safe.
  */
 bool map_is_occupied(Map *map, const Coord position) {
-    if (!map) return true;
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return true;
+    }
 
     if (map_is_within_bounds(map, position) == false) {
         return true;
     }
 
-    pthread_mutex_lock(&map->mutex);
+    TRY(pthread_mutex_lock(&map->mutex));
     const Tile *tile = tile_at(map, position);
 
     const bool is_occupied = tile->is_occupied ||
                              tile->type == TILE_BLOCKED;
 
-    pthread_mutex_unlock(&map->mutex);
-
+    TRY(pthread_mutex_unlock(&map->mutex));
     return is_occupied;
 }
 
@@ -398,13 +441,22 @@ bool map_is_occupied(Map *map, const Coord position) {
  * estiver ocupado; caso contrário, nenhum estado é alterado.
  */
 bool map_transfer_occupant(Map *map, const Coord from, const Coord to) {
-    if (!map || !map_is_within_bounds(map, from) || !map_is_within_bounds(map, to)) {
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return true;
+    }
+
+    if (!map_is_within_bounds(map, from) || !map_is_within_bounds(map, to)) {
+        LOG("Warning: coordinate is out of bounds.\n"
+            "Map dimensions: %zu x %zu.\n"
+            "From x: %d, y: %d,\nto x: %d, y: %d.",
+            map->width, map->height,
+            from.x, from.y, to.x, to.y);
         return false;
     }
 
     bool has_moved = false;
-
-    pthread_mutex_lock(&map->mutex);
+    TRY(pthread_mutex_lock(&map->mutex));
 
     Tile *origin = tile_at(map, from);
     Tile *destination = tile_at(map, to);
@@ -415,8 +467,7 @@ bool map_transfer_occupant(Map *map, const Coord from, const Coord to) {
         has_moved = true;
     }
 
-    pthread_mutex_unlock(&map->mutex);
-
+    TRY(pthread_mutex_unlock(&map->mutex));
     return has_moved;
 }
 
@@ -435,9 +486,12 @@ bool map_transfer_occupant(Map *map, const Coord from, const Coord to) {
  *          que estas fiquem ocupadas.
  */
 Coord map_reserve_spawn_point(Map *map) {
-    if (!map) return NULL_COORD;
+    if (!map) {
+        LOG("Error: parameter 'map' is NULL.");
+        return NULL_COORD;
+    }
 
-    pthread_mutex_lock(&map->mutex);
+    TRY(pthread_mutex_lock(&map->mutex));
     Coord spawn_point;
 
     // TODO: Gerar melhor distribuição para implementações futuras
@@ -451,12 +505,13 @@ Coord map_reserve_spawn_point(Map *map) {
             if (is_valid_road(tile->type) && !tile->is_occupied) {
                 tile->is_occupied = true;
 
-                pthread_mutex_unlock(&map->mutex);
+                TRY(pthread_mutex_unlock(&map->mutex));
                 return spawn_point;
             }
         }
     }
 
-    pthread_mutex_unlock(&map->mutex);
+    TRY(pthread_mutex_unlock(&map->mutex));
+    LOG("Warning: failed to found an available spawn point coordinate.");
     return NULL_COORD;
 }

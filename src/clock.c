@@ -42,7 +42,11 @@ struct Clock {
  */
 Clock *clock_new(void) {
     Clock *clock = malloc(sizeof(Clock));
-    CHECK_NULL(clock);
+
+    if (!clock) {
+        LOG("Error: failed to allocate memory for 'clock'.");
+        return NULL;
+    }
 
     TRY(pthread_mutex_init(&clock->mutex, NULL));
     TRY(pthread_cond_init(&clock->cond_clock, NULL));
@@ -62,7 +66,11 @@ Clock *clock_new(void) {
  * erro) antes de liberar a memória da estrutura.
  */
 void clock_destroy(Clock *clock) {
-    CHECK_NULL(clock);
+    if (!clock) {
+        LOG("Error: parameter 'clock' is NULL.");
+        return;
+    }
+
     TRY(pthread_mutex_destroy(&clock->mutex));
     TRY(pthread_cond_destroy(&clock->cond_clock));
     TRY(pthread_cond_destroy(&clock->cond_vehicles));
@@ -78,7 +86,11 @@ void clock_destroy(Clock *clock) {
  * clock_update na escrita, evitando leitura concorrente não sincronizada.
  */
 size_t clock_get_tick(Clock *clock) {
-    CHECK_NULL(clock);
+
+    if (!clock) {
+        LOG("Error: parameter 'clock' is NULL.");
+        return 0;
+    }
 
     pthread_mutex_lock(&clock->mutex);
     const size_t current_tick = clock->current_tick;
@@ -102,7 +114,12 @@ size_t clock_get_tick(Clock *clock) {
  *       protege contra despertar repentino de uma thread.
  */
 void *clock_update(void *arg) {
-    CHECK_NULL(arg);
+
+    if (!arg) {
+        LOG("Error: thread argument 'clock' is NULL.");
+        return NULL;
+    }
+
     Clock *clock = (Clock *)arg;
 
     for (int i = 0; i < TICKS; i++) {
@@ -133,15 +150,19 @@ void *clock_update(void *arg) {
  * tick informado pela thread, sem busy-waiting, até o relógio avançar.
  */
 void clock_signal(Clock *clock, const size_t tick) {
-    CHECK_NULL(clock);
+    if (!clock) {
+        LOG("Error: parameter 'clock' is NULL.");
+        return;
+    }
 
     TRY(pthread_mutex_lock(&clock->mutex));
     clock->completed_count++;
 
-    // TODO: Criar macro mais flexível para log de erros
-    if (clock->completed_count > VEHICLE_COUNT) {
-        fprintf(stderr, "Error: 'clock->completed_count' have been corrupted");
-    }
+    LOG_IF(clock->completed_count > VEHICLE_COUNT,
+        "Warning: 'clock->completed_count' have been corrupted\n."
+        "Max: %zu,\ncompleted_count: %zu.",
+        VEHICLE_COUNT, clock->completed_count);
+
 
     if (clock->completed_count == VEHICLE_COUNT) {
         TRY(pthread_cond_signal(&clock->cond_clock));

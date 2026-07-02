@@ -324,7 +324,10 @@ Vehicle *vehicle_new(Map *map, const int id) {
     // CRITÉRIO: Cada veículo possui identificador, posição, direção, velocidade, tipo, e rota.
 
     Vehicle *vehicle = malloc(sizeof(Vehicle));
-    CHECK_NULL(vehicle);
+    if (!vehicle) {
+        LOG("Error: failed to allocate memory for 'vehicle'");
+        return NULL;
+    }
 
     vehicle->id = id;
 
@@ -360,6 +363,7 @@ Vehicle *vehicle_new(Map *map, const int id) {
     vehicle->direction = find_direction_from_tile(tile);
 
     if (vehicle->direction == DIRECTION_NONE) {
+        LOG("Error: 'vehicle->direction' have not been properly defined.");
         free(vehicle);
         return NULL;
     }
@@ -374,7 +378,7 @@ Vehicle *vehicle_new(Map *map, const int id) {
  */
 void vehicle_destroy(Vehicle *vehicle) {
     // Libera a memória alocada para o contexto do veículo.
-    CHECK_NULL(vehicle);
+    LOG_IF(vehicle == NULL, "Warning: parameter 'vehicle' is NULL.");
     free(vehicle);
 }
 
