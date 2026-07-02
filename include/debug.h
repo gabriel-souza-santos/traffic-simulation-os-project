@@ -27,12 +27,18 @@
 #endif //DEBUG
 
 /**
+ * @brief Registra uma mensagem de depuração formatada no fluxo de erro padrão.
  *
- * @param file
- * @param line
- * @param func
- * @param fmt
- * @param ...
+ * Função base utilizada internamente pelas macros deste módulo (TRY, LOG,
+ * LOG_IF, CHECK_NULL). Em geral não deve ser chamada diretamente — prefira
+ * as macros, que preenchem automaticamente os parâmetros de contexto
+ * (__FILE__, __LINE__, __func__).
+ *
+ * @param file Nome do arquivo-fonte onde a chamada ocorreu.
+ * @param line Número da linha onde a chamada ocorreu.
+ * @param func Nome da função onde a chamada ocorreu.
+ * @param fmt  String de formato (estilo printf) da mensagem a ser exibida.
+ * @param ...  Argumentos variádicos correspondentes ao formato.
  */
 void debug_log(
     const char *file,
@@ -68,16 +74,35 @@ void debug_log(
 
 
 /**
+ * @def LOG(...)
+ * @brief Registra uma mensagem de depuração com contexto automático de arquivo,
+ *        linha e função.
  *
+ * Atalho para debug_log que injeta automaticamente __FILE__, __LINE__ e
+ * __func__. Aceita os mesmos argumentos de formato que printf.
+ *
+ * Compilado como no-op em modo Release (DEBUG=0).
+ *
+ * @param ... String de formato (estilo printf) seguida dos argumentos
+ *            correspondentes.
  */
 #define LOG(...) \
     debug_log(__FILE__, __LINE__, __func__, __VA_ARGS__)
 
 
 /**
+ * @def LOG_IF(cond, ...)
+ * @brief Registra uma mensagem de depuração condicionalmente.
  *
- * @param cond
- * @param ...
+ * Equivalente a LOG, mas a mensagem só é emitida se @p cond for verdadeiro.
+ * A condição é avaliada apenas uma vez, sem efeitos colaterais de avaliação
+ * múltipla.
+ *
+ * Compilado como no-op em modo Release (DEBUG=0).
+ *
+ * @param cond Condição booleana que habilita o log quando verdadeira.
+ * @param ...  String de formato (estilo printf) seguida dos argumentos
+ *             correspondentes.
  */
 #define LOG_IF(cond, ...)                           \
     do {                                            \
@@ -123,7 +148,6 @@ void debug_log(
 /*
  * Modo Release (Produção):
  * As macros são redefinidas para minimizar o overhead de processamento.
- * TRY apenas executa a expressão silenciosamente e CHECK_NULL é ignorada.
  */
 
 #define TRY(expr)           if (expr) exit(EXIT_FAILURE);
