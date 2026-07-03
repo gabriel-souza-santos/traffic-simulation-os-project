@@ -388,3 +388,7 @@ void *vehicle_update(void *vehicle) {
 
     return NULL;
 }
+
+Coord vehicle_get_priority_coord(void) {
+    // TODO
+}
