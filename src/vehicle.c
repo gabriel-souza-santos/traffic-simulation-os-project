@@ -267,7 +267,7 @@ static bool is_overtaking(const Map *map, const Vehicle *vehicle, const Coord ta
  * @return true Se o movimento foi validado e executado com sucesso.
  * @return false Se qualquer validação falhar ou a célula destino estiver indisponível.
  */
-static bool update_position(Map *map, Vehicle *vehicle,
+static bool try_update_position(Map *map, Vehicle *vehicle,
     const Coord target, const Clock *clock) {
 
     if (vehicle == NULL || clock == NULL)
