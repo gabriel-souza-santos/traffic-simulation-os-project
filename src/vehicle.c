@@ -31,6 +31,8 @@ struct Vehicle {
     VehicleType type;    /**< Tipo do veículo (define velocidade e prioridade). */
 };
 
+// TODO: adicionar 'id' e 'type' como campos constantes
+
 
 /**
  * @internal
@@ -323,6 +325,8 @@ Vehicle *vehicle_new(Map *map, const int id) {
     // Aloca e inicializa as propriedades de um veículo.
     // CRITÉRIO: Cada veículo possui identificador, posição, direção, velocidade, tipo, e rota.
 
+    // TODO: adicionar criação interna de IDs auto-incrementais
+
     Vehicle *vehicle = malloc(sizeof(Vehicle));
     CHECK_NULL(vehicle);
 
@@ -379,12 +383,38 @@ void vehicle_destroy(Vehicle *vehicle) {
 }
 
 
-void *vehicle_update(void *vehicle) {
+void *vehicle_update(void *vehicle_args) {
     // Rotina principal executada por cada thread de veículo.
     // CRITÉRIOS: Respeitar direção da via, não atravessar paredes (BLOCKED) e não sair do mapa.
     // Deve chamar clock_signal ao finalizar
 
-    // TODO
+    VehicleArgs *args = (VehicleArgs *)vehicle_args;
+
+    Clock *clock = args->clock;
+    Map *map = args->map;
+    Vehicle *vehicle = args->vehicle;
+
+    // TODO: Atualmente usa o número de TICKS pré fixado, será mudado em breve
+    for (int i = 0; i < TICKS; ++i) {
+        const Coord target = find_next_position(vehicle);
+
+        // TODO: Notificar caso 'target' esteja fora do mapa
+
+        // Se a sua posição foi atualizada no mapa alteramos a sua direção
+        if (try_update_position(map, vehicle, target, clock) == true) {
+            const TileType target_tile = map_get_tile_type(map, vehicle->position);
+            const Direction new_direction = find_direction_from_tile(target_tile);
+            vehicle->direction = new_direction;
+
+            // TODO: notificar se a nova direção é DIRECTION_NONE
+        }
+
+        // TODO: Usar em um tipo mais adequado que 'size_t' para o clock
+
+        // Dorme até o clock atualizar o tick
+        const size_t current_tick = clock_get_tick(clock);
+        clock_signal(clock, current_tick);
+    }
 
     return NULL;
 }
