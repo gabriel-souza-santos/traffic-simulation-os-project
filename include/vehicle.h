@@ -90,6 +90,29 @@ void vehicle_destroy(Vehicle *vehicle);
  */
 void *vehicle_update(void *vehicle);
 
+/**
+ * @brief Retorna a coordenada de prioridade de passagem ativa na simulação.
+ *
+ * Consulta o estado atual da ambulância e deriva a coordenada que indica
+ * qual eixo da malha deve receber prioridade de sinal verde. O valor
+ * retornado pode assumir três formas:
+ *
+ * - **Ambos os campos inválidos** (NULL_COORD): nenhuma prioridade ativa;
+ *   os semáforos devem seguir a alternância normal.
+ * - **Apenas @c x válido**: todos os pontos de espera com o mesmo @c x
+ *   devem receber verde; os demais, vermelho.
+ * - **Apenas @c y válido**: todos os pontos de espera com o mesmo @c y
+ *   devem receber verde; os demais, vermelho.
+ *
+ * @note O campo inválido de uma coordenada parcial corresponde ao valor
+ *       sentinela de NULL_COORD (ver map.h).
+ *
+ * @return A coordenada de prioridade ativa, ou NULL_COORD se não houver
+ *         ambulância em trânsito ou se ela não estiver em posição de
+ *         solicitar prioridade.
+ */
+Coord vehicle_get_priority_coord(void);
+
 // TODO: Funções Getter para obter informações dos veículos de forma segura
 
 #endif //URBAN_TRAFFIC_VEHICLE_H
