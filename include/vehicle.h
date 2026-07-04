@@ -11,17 +11,18 @@
 #ifndef URBAN_TRAFFIC_VEHICLE_H
 #define URBAN_TRAFFIC_VEHICLE_H
 
-#include <stdint.h>
 #include "map.h"
+#include <stdint.h>
 
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
-#define VEHICLE_COUNT 10 //valores permitidos: [10-20]
+#define VEHICLE_COUNT 10 // valores permitidos: [10-20]
 
-/* Garante em tempo de compilação que a contagem de veículos respeite os limites do projeto */
+/* Garante em tempo de compilação que a contagem de veículos respeite os limites
+ * do projeto */
 #if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
 #undef VEHICLE_COUNT
 #define VEHICLE_COUNT 10
-#endif //#if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
+#endif // #if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
 
 /**
  * @brief Classifica o papel e a velocidade de cada veículo na simulação.
@@ -30,11 +31,14 @@
  * em relação aos ticks do relógio global.
  */
 typedef enum {
-    NO_VEHICLE, /**< Valor auxiliar indicando ausência de veículo associado. */
-    AMBULANCE,  /**< Veículo de emergência. Deve ter prioridade em cruzamentos. */
-    CAR_FAST,   /**< Carro rápido. Executa o seu movimento a cada 1 tick do relógio. */
-    CAR_MEDIUM, /**< Carro médio. Executa o seu movimento a cada 2 ticks do relógio. */
-    CAR_SLOW,   /**< Carro lento. Executa o seu movimento a cada 4 ticks do relógio. */
+  NO_VEHICLE, /**< Valor auxiliar indicando ausência de veículo associado. */
+  AMBULANCE,  /**< Veículo de emergência. Deve ter prioridade em cruzamentos. */
+  CAR_FAST, /**< Carro rápido. Executa o seu movimento a cada 1 tick do relógio.
+             */
+  CAR_MEDIUM, /**< Carro médio. Executa o seu movimento a cada 2 ticks do
+                 relógio. */
+  CAR_SLOW, /**< Carro lento. Executa o seu movimento a cada 4 ticks do relógio.
+             */
 } VehicleType;
 
 /**
@@ -43,11 +47,11 @@ typedef enum {
  * acessar e travar (lock) durante o seu turno.
  */
 typedef enum {
-    DIRECTION_NONE,  /**< Veículo parado ou sem direção definida. */
-    DIRECTION_UP,    /**< Movimento para o Norte (Y decrescente na matriz). */
-    DIRECTION_DOWN,  /**< Movimento para o Sul (Y crescente na matriz). */
-    DIRECTION_LEFT,  /**< Movimento para o Oeste (X decrescente na matriz). */
-    DIRECTION_RIGHT, /**< Movimento para o Leste (X crescente na matriz). */
+  DIRECTION_NONE,  /**< Veículo parado ou sem direção definida. */
+  DIRECTION_UP,    /**< Movimento para o Norte (Y decrescente na matriz). */
+  DIRECTION_DOWN,  /**< Movimento para o Sul (Y crescente na matriz). */
+  DIRECTION_LEFT,  /**< Movimento para o Oeste (X decrescente na matriz). */
+  DIRECTION_RIGHT, /**< Movimento para o Leste (X crescente na matriz). */
 } Direction;
 
 /**
@@ -85,7 +89,8 @@ void vehicle_destroy(Vehicle *vehicle);
 /**
  * @brief Rotina principal executada pela thread de cada veículo.
  *
- * @param vehicle Ponteiro genérico (void*) que deve ser feito o cast para (Vehicle*).
+ * @param vehicle Ponteiro genérico (void*) que deve ser feito o cast para
+ * (Vehicle*).
  * @return NULL, respeitando a assinatura padrão da API Pthreads.
  */
 void *vehicle_update(void *vehicle);
@@ -113,6 +118,42 @@ void *vehicle_update(void *vehicle);
  */
 Coord vehicle_get_priority_coord(void);
 
-// TODO: Funções Getter para obter informações dos veículos de forma segura
+/**
+ * @brief Retorna a posição atual do veículo.
+ *
+ * Permite que outros módulos consultem a localização do veículo sem
+ * acessar diretamente sua estrutura interna, preservando o
+ * encapsulamento do módulo.
+ *
+ * @param vehicle Ponteiro para o veículo.
+ *
+ * @return Coordenada atual ocupada pelo veículo no mapa.
+ */
+Coord vehicle_get_position(const Vehicle *vehicle);
 
-#endif //URBAN_TRAFFIC_VEHICLE_H
+/**
+ * @brief Retorna o tipo do veículo.
+ *
+ * Permite identificar se o veículo é uma ambulância ou um carro de
+ * determinada velocidade.
+ *
+ * @param vehicle Ponteiro para o veículo.
+ *
+ * @return Tipo do veículo.
+ */
+VehicleType vehicle_get_type(const Vehicle *vehicle);
+
+/**
+ * @brief Retorna a direção atual de deslocamento do veículo.
+ *
+ * A direção retornada representa o sentido em que o veículo está
+ * trafegando na malha viária e pode ser utilizada por outros módulos,
+ * como o controlador de semáforos, para tomar decisões de controle.
+ *
+ * @param vehicle Ponteiro para o veículo.
+ *
+ * @return Direção atual do veículo.
+ */
+Direction vehicle_get_direction(const Vehicle *vehicle);
+
+#endif // URBAN_TRAFFIC_VEHICLE_H
