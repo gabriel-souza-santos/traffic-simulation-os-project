@@ -37,6 +37,8 @@ typedef enum {
     CAR_SLOW,   /**< Carro lento. Executa o seu movimento a cada 4 ticks do relógio. */
 } VehicleType;
 
+#define VEHICLE_TYPE_COUNT 5
+
 /**
  * @brief Indica o sentido atual de movimento do veículo no mapa.
  * * Usado para calcular a próxima coordenada (X, Y) que o veículo tentará
@@ -49,6 +51,8 @@ typedef enum {
     DIRECTION_LEFT,  /**< Movimento para o Oeste (X decrescente na matriz). */
     DIRECTION_RIGHT, /**< Movimento para o Leste (X crescente na matriz). */
 } Direction;
+
+#define DIRECTION_COUNT 5
 
 /**
  * @brief Tipo opaco que representa um veículo e o seu contexto interno.
@@ -114,5 +118,11 @@ void *vehicle_update(void *vehicle);
 Coord vehicle_get_priority_coord(void);
 
 // TODO: Funções Getter para obter informações dos veículos de forma segura
+
+Coord vehicle_get_position(const Vehicle *vehicle);
+
+VehicleType vehicle_get_type(const Vehicle *vehicle);
+
+Direction vehicle_get_direction(const Vehicle *vehicle);
 
 #endif //URBAN_TRAFFIC_VEHICLE_H

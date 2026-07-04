@@ -47,6 +47,7 @@ typedef enum {
     TILE_WAIT       = '!',  /**< Célula que indica uma área de espera/parada */
 } TileType;
 
+#define TILE_TYPE_COUNT 7
 
 /**
  * @brief Estrutura opaca para o mapa, para reforçar o encapsulamento.
