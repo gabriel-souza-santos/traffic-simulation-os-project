@@ -1,16 +1,27 @@
 /**
  * @file vehicle.h
- * @brief
+ * @brief Definições e rotinas das threads dos veículos da simulação.
+ *
+ * Este módulo gerencia o ciclo de vida, estado e comportamento das entidades
+ * móveis (carros e ambulâncias) que navegam pela malha viária, garantindo
+ * o respeito à exclusão mútua e ao relógio global discreto.
  *
  * @date 2026-06-10
  */
 #ifndef URBAN_TRAFFIC_VEHICLE_H
 #define URBAN_TRAFFIC_VEHICLE_H
 
+#include <stdint.h>
+#include "map.h"
 
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
 #define VEHICLE_COUNT 10 //valores permitidos: [10-20]
 
+/* Garante em tempo de compilação que a contagem de veículos respeite os limites do projeto */
+#if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
+#undef VEHICLE_COUNT
+#define VEHICLE_COUNT 10
+#endif //#if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
 
 /**
  * @brief Classifica o papel e a velocidade de cada veículo na simulação.
@@ -26,27 +37,59 @@ typedef enum {
     CAR_SLOW,   /**< Carro lento. Executa o seu movimento a cada 4 ticks do relógio. */
 } VehicleType;
 
+/**
+ * @brief Indica o sentido atual de movimento do veículo no mapa.
+ * * Usado para calcular a próxima coordenada (X, Y) que o veículo tentará
+ * acessar e travar (lock) durante o seu turno.
+ */
+typedef enum {
+    DIRECTION_NONE,  /**< Veículo parado ou sem direção definida. */
+    DIRECTION_UP,    /**< Movimento para o Norte (Y decrescente na matriz). */
+    DIRECTION_DOWN,  /**< Movimento para o Sul (Y crescente na matriz). */
+    DIRECTION_LEFT,  /**< Movimento para o Oeste (X decrescente na matriz). */
+    DIRECTION_RIGHT, /**< Movimento para o Leste (X crescente na matriz). */
+} Direction;
 
 /**
- * @brief Armazena o contexto completo da thread de um veículo.
+ * @brief Tipo opaco que representa um veículo e o seu contexto interno.
+ * Oculta os detalhes de implementação das outras partes do código para
+ * garantir o encapsulamento seguro.
  *
- * Um ponteiro para esta estrutura deve ser passado como argumento na chamada
- * de pthread_create(), dando à thread identidade, comportamento e localização atual.
+ * Deve ser instanciado sempre por meio de um ponteiro:
+ * @code
+ * Vehicle *vehicle;
+ * @endcode
  */
-typedef struct {
-    VehicleType type; /**< Define as regras de movimento e prioridade. */
-    int id;           /**< Identificador único do carro (debug). */
-    int x;            /**< Posição atual do veículo no eixo X (coluna). */
-    int y;            /**< Posição atual do veículo no eixo Y (linha). */
-} Vehicle;
-
+typedef struct Vehicle Vehicle;
 
 /**
- * @brief Array global que aloca a memória do contexto de todos os veículos.
+ * @brief Aloca e inicializa um novo veículo.
  *
- * Pode ser iterado pela thread de renderização (ASCII) caso ela precise
- * de informações adicionais que não estão declaradas no mapa.
+ * @param map Mapa onde o veículo será inserido; usado para reservar um
+ *            ponto de spawn livre.
+ * @param id Identificador único do veículo. Os quatro primeiros ids (0-3)
+ *           recebem tipos fixos (garantindo ao menos uma ambulância e um
+ *           carro de cada velocidade); os demais recebem tipo aleatório.
+ * @return Um ponteiro para a nova instância de Vehicle, ou `NULL` se não
+ *         houver spawn point livre no mapa ou se a direção inicial
+ *         derivada do tile reservado for inválida.
  */
-Vehicle cars[VEHICLE_COUNT];
+Vehicle *vehicle_new(Map *map, int id);
+
+/**
+ * @brief Destrói um veículo e libera seus recursos.
+ * @param vehicle Ponteiro para o veículo a ser destruído.
+ */
+void vehicle_destroy(Vehicle *vehicle);
+
+/**
+ * @brief Rotina principal executada pela thread de cada veículo.
+ *
+ * @param vehicle Ponteiro genérico (void*) que deve ser feito o cast para (Vehicle*).
+ * @return NULL, respeitando a assinatura padrão da API Pthreads.
+ */
+void *vehicle_update(void *vehicle);
+
+// TODO: Funções Getter para obter informações dos veículos de forma segura
 
 #endif //URBAN_TRAFFIC_VEHICLE_H
