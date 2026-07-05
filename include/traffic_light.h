@@ -28,8 +28,8 @@
  * controla, permitindo que o semáforo abra ou feche eixos independentemente.
  */
 typedef struct {
-  Coord cell;          /**< Coordenada da célula TILE_WAIT no mapa. */
-  Direction direction; /**< Direção do fluxo que aguarda nesta célula. */
+    Coord cell; /**< Coordenada da célula TILE_WAIT no mapa. */
+    Direction direction; /**< Direção do fluxo que aguarda nesta célula. */
 } WaitPoint;
 
 /**
@@ -41,20 +41,20 @@ typedef struct {
  * de fluxo correspondente.
  */
 typedef struct {
-  WaitPoint *wait_points; /**< Array de pontos de espera desta interseção. */
-  int count;              /**< Número de pontos de espera. */
+    WaitPoint *wait_points; /**< Array de pontos de espera desta interseção. */
+    int count; /**< Número de pontos de espera. */
 } Intersection;
 
 /**
  * @brief Argumentos passados para a thread do semáforo via pthread_create.
  */
 typedef struct TrafficLight
-    TrafficLight; // Fix: No struct abaixo, estava dando erro quando o
-                  // compilador analisava ela.
+TrafficLight; // Fix: No struct abaixo, estava dando erro quando o
+// compilador analisava ela.
 typedef struct {
-  Map *map;                    /**< Mapa da simulação. */
-  Clock *clock;                /**< Relógio global da simulação. */
-  TrafficLight *traffic_light; /**< Instância do semáforo a ser gerenciada. */
+    Map *map; /**< Mapa da simulação. */
+    Clock *clock; /**< Relógio global da simulação. */
+    TrafficLight *traffic_light; /**< Instância do semáforo a ser gerenciada. */
 } TrafficLightArgs;
 
 /**
@@ -68,10 +68,10 @@ typedef struct {
  *       mesmo em situações de prioridade de ambulância.
  */
 typedef enum {
-  TRAFFIC_LIGHT_NONE,   /**< Ausência de semáforo na posição consultada. */
-  TRAFFIC_LIGHT_RED,    /**< Via fechada; veículos devem aguardar. */
-  TRAFFIC_LIGHT_GREEN,  /**< Via aberta; veículos podem avançar. */
-  TRAFFIC_LIGHT_YELLOW, /**< Estado de transição; nenhum veículo deve avançar.
+    TRAFFIC_LIGHT_NONE, /**< Ausência de semáforo na posição consultada. */
+    TRAFFIC_LIGHT_RED, /**< Via fechada; veículos devem aguardar. */
+    TRAFFIC_LIGHT_GREEN, /**< Via aberta; veículos podem avançar. */
+    TRAFFIC_LIGHT_YELLOW, /**< Estado de transição; nenhum veículo deve avançar.
                          */
 } TrafficLightColor;
 

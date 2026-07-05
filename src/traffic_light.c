@@ -49,13 +49,11 @@
  * Cada WaitPoint existente na malha possui exatamente uma luz.
  */
 typedef struct {
+    WaitPoint wait_point;
 
-  WaitPoint wait_point;
+    TrafficLightColor current;
 
-  TrafficLightColor current;
-
-  TrafficLightColor target;
-
+    TrafficLightColor target;
 } TrafficLightState;
 
 /**
@@ -63,11 +61,9 @@ typedef struct {
  * @brief Fases da máquina de estados.
  */
 typedef enum {
+    PHASE_GREEN,
 
-  PHASE_GREEN,
-
-  PHASE_YELLOW
-
+    PHASE_YELLOW
 } TrafficLightPhase;
 
 /**
@@ -75,57 +71,54 @@ typedef enum {
  * @brief Implementação concreta do controlador global.
  */
 struct TrafficLight {
+    /**
+     * @brief Todas as interseções cadastradas.
+     */
+    Intersection *intersections;
 
-  /**
-   * @brief Todas as interseções cadastradas.
-   */
-  Intersection *intersections;
+    /**
+     * @brief Quantidade de interseções.
+     */
+    int intersection_count;
 
-  /**
-   * @brief Quantidade de interseções.
-   */
-  int intersection_count;
+    /**
+     * @brief Vetor contendo todas as luzes.
+     */
+    TrafficLightState *lights;
 
-  /**
-   * @brief Vetor contendo todas as luzes.
-   */
-  TrafficLightState *lights;
+    /**
+     * @brief Número total de luzes.
+     */
+    int light_count;
 
-  /**
-   * @brief Número total de luzes.
-   */
-  int light_count;
+    /**
+     * @brief Exclusão mútua para acesso às luzes.
+     */
+    pthread_mutex_t mutex;
 
-  /**
-   * @brief Exclusão mútua para acesso às luzes.
-   */
-  pthread_mutex_t mutex;
+    /**
+     * @brief Último tick processado.
+     */
+    size_t last_tick;
 
-  /**
-   * @brief Último tick processado.
-   */
-  size_t last_tick;
+    /**
+     * @brief Contador regressivo da fase atual.
+     */
+    int phase_ticks;
 
-  /**
-   * @brief Contador regressivo da fase atual.
-   */
-  int phase_ticks;
+    /**
+     * @brief Fase atual da máquina de estados.
+     */
+    TrafficLightPhase phase;
 
-  /**
-   * @brief Fase atual da máquina de estados.
-   */
-  TrafficLightPhase phase;
+    /**
+     * @brief Eixo atualmente liberado.
+     */
+    enum {
+        AXIS_HORIZONTAL,
 
-  /**
-   * @brief Eixo atualmente liberado.
-   */
-  enum {
-
-    AXIS_HORIZONTAL,
-
-    AXIS_VERTICAL
-
-  } current_axis;
+        AXIS_VERTICAL
+    } current_axis;
 };
 
 static bool is_horizontal(Direction direction);
@@ -162,154 +155,148 @@ static int find_light(TrafficLight *traffic_light, Coord position);
  * @retval TrafficLight* Ponteiro para o controlador inicializado.
  */
 TrafficLight *traffic_light_new(int num, Intersection *intersections) {
-
-  /**
-   * @brief Valida os parâmetros de entrada.
-   *
-   * @details
-   * O controlador somente pode ser criado quando existe pelo menos uma
-   * interseção cadastrada e o vetor recebido é válido.
-   */
-  if (num <= 0 || intersections == NULL) {
-    return NULL;
-  }
-
-  /**
-   * @brief Aloca a estrutura principal do controlador.
-   *
-   * @details
-   * Esta estrutura armazenará todas as informações necessárias para o
-   * gerenciamento dos semáforos durante toda a execução da simulação.
-   */
-  TrafficLight *traffic_light = malloc(sizeof(TrafficLight));
-
-  /**
-   * @brief Verifica se a alocação foi realizada com sucesso.
-   */
-  if (traffic_light == NULL) {
-    return NULL;
-  }
-
-  /**
-   * @brief Inicializa todos os campos da estrutura.
-   *
-   * @details
-   * Todos os bytes são preenchidos com zero para garantir que ponteiros,
-   * contadores e demais atributos iniciem em um estado conhecido antes
-   * de serem configurados individualmente.
-   */
-  memset(traffic_light, 0, sizeof(TrafficLight));
-
-  /**
-   * @brief Inicializa o mutex responsável pela sincronização.
-   *
-   * @details
-   * O controlador poderá ser acessado simultaneamente pela thread dos
-   * semáforos e pelas threads dos veículos. O mutex garante exclusão
-   * mútua durante essas operações.
-   */
-  if (pthread_mutex_init(&traffic_light->mutex, NULL) != 0) {
-    free(traffic_light);
-    return NULL;
-  }
-
-  /**
-   * @brief Registra as interseções gerenciadas pelo controlador.
-   *
-   * @note
-   * O vetor não é copiado. Apenas seu endereço é armazenado.
-   */
-  traffic_light->intersections = intersections;
-  traffic_light->intersection_count = num;
-
-  /**
-   * @brief Calcula a quantidade total de luzes da simulação.
-   *
-   * @details
-   * Cada WaitPoint corresponde exatamente a um semáforo. Portanto,
-   * basta somar a quantidade de WaitPoints existentes em todas as
-   * interseções cadastradas.
-   */
-  traffic_light->light_count = 0;
-
-  for (int i = 0; i < num; i++) {
-    traffic_light->light_count += intersections[i].count;
-  }
-
-  /**
-   * @brief Aloca o vetor contendo o estado de todas as luzes.
-   */
-  traffic_light->lights =
-      malloc(traffic_light->light_count * sizeof(TrafficLightState));
-
-  /**
-   * @brief Trata falha durante a alocação do vetor de luzes.
-   *
-   * @details
-   * Caso a alocação falhe, todos os recursos adquiridos anteriormente
-   * devem ser liberados antes do retorno.
-   */
-  if (traffic_light->lights == NULL) {
-    pthread_mutex_destroy(&traffic_light->mutex);
-    free(traffic_light);
-    return NULL;
-  }
-
-  /**
-   * @brief Inicializa individualmente todas as luzes da simulação.
-   *
-   * @details
-   * Cada WaitPoint origina exatamente uma estrutura
-   * TrafficLightState. O estado inicial depende do eixo ao qual a
-   * direção pertence.
-   *
-   * - Horizontal → GREEN
-   * - Vertical → RED
-   */
-  int index = 0;
-
-  for (int i = 0; i < num; i++) {
-
-    for (int j = 0; j < intersections[i].count; j++) {
-
-      WaitPoint wait_point = intersections[i].wait_points[j];
-
-      traffic_light->lights[index].wait_point = wait_point;
-
-      if (is_horizontal(wait_point.direction)) {
-
-        traffic_light->lights[index].current = TRAFFIC_LIGHT_GREEN;
-
-        traffic_light->lights[index].target = TRAFFIC_LIGHT_GREEN;
-
-      } else {
-
-        traffic_light->lights[index].current = TRAFFIC_LIGHT_RED;
-
-        traffic_light->lights[index].target = TRAFFIC_LIGHT_RED;
-      }
-
-      index++;
+    /**
+     * @brief Valida os parâmetros de entrada.
+     *
+     * @details
+     * O controlador somente pode ser criado quando existe pelo menos uma
+     * interseção cadastrada e o vetor recebido é válido.
+     */
+    if (num <= 0 || intersections == NULL) {
+        return NULL;
     }
-  }
 
-  /**
-   * @brief Inicializa a máquina de estados.
-   *
-   * @details
-   * A simulação inicia com o eixo horizontal liberado. O contador de
-   * ticks é configurado para determinar quanto tempo essa fase deverá
-   * permanecer ativa antes da primeira transição.
-   */
-  traffic_light->phase = PHASE_GREEN;
-  traffic_light->phase_ticks = GREEN_TIME;
-  traffic_light->current_axis = AXIS_HORIZONTAL;
-  traffic_light->last_tick = 0;
+    /**
+     * @brief Aloca a estrutura principal do controlador.
+     *
+     * @details
+     * Esta estrutura armazenará todas as informações necessárias para o
+     * gerenciamento dos semáforos durante toda a execução da simulação.
+     */
+    TrafficLight *traffic_light = malloc(sizeof(TrafficLight));
 
-  /**
-   * @brief Retorna o controlador completamente inicializado.
-   */
-  return traffic_light;
+    /**
+     * @brief Verifica se a alocação foi realizada com sucesso.
+     */
+    if (traffic_light == NULL) {
+        return NULL;
+    }
+
+    /**
+     * @brief Inicializa todos os campos da estrutura.
+     *
+     * @details
+     * Todos os bytes são preenchidos com zero para garantir que ponteiros,
+     * contadores e demais atributos iniciem em um estado conhecido antes
+     * de serem configurados individualmente.
+     */
+    memset(traffic_light, 0, sizeof(TrafficLight));
+
+    /**
+     * @brief Inicializa o mutex responsável pela sincronização.
+     *
+     * @details
+     * O controlador poderá ser acessado simultaneamente pela thread dos
+     * semáforos e pelas threads dos veículos. O mutex garante exclusão
+     * mútua durante essas operações.
+     */
+    if (pthread_mutex_init(&traffic_light->mutex, NULL) != 0) {
+        free(traffic_light);
+        return NULL;
+    }
+
+    /**
+     * @brief Registra as interseções gerenciadas pelo controlador.
+     *
+     * @note
+     * O vetor não é copiado. Apenas seu endereço é armazenado.
+     */
+    traffic_light->intersections = intersections;
+    traffic_light->intersection_count = num;
+
+    /**
+     * @brief Calcula a quantidade total de luzes da simulação.
+     *
+     * @details
+     * Cada WaitPoint corresponde exatamente a um semáforo. Portanto,
+     * basta somar a quantidade de WaitPoints existentes em todas as
+     * interseções cadastradas.
+     */
+    traffic_light->light_count = 0;
+
+    for (int i = 0; i < num; i++) {
+        traffic_light->light_count += intersections[i].count;
+    }
+
+    /**
+     * @brief Aloca o vetor contendo o estado de todas as luzes.
+     */
+    traffic_light->lights =
+            malloc(traffic_light->light_count * sizeof(TrafficLightState));
+
+    /**
+     * @brief Trata falha durante a alocação do vetor de luzes.
+     *
+     * @details
+     * Caso a alocação falhe, todos os recursos adquiridos anteriormente
+     * devem ser liberados antes do retorno.
+     */
+    if (traffic_light->lights == NULL) {
+        pthread_mutex_destroy(&traffic_light->mutex);
+        free(traffic_light);
+        return NULL;
+    }
+
+    /**
+     * @brief Inicializa individualmente todas as luzes da simulação.
+     *
+     * @details
+     * Cada WaitPoint origina exatamente uma estrutura
+     * TrafficLightState. O estado inicial depende do eixo ao qual a
+     * direção pertence.
+     *
+     * - Horizontal → GREEN
+     * - Vertical → RED
+     */
+    int index = 0;
+
+    for (int i = 0; i < num; i++) {
+        for (int j = 0; j < intersections[i].count; j++) {
+            WaitPoint wait_point = intersections[i].wait_points[j];
+
+            traffic_light->lights[index].wait_point = wait_point;
+
+            if (is_horizontal(wait_point.direction)) {
+                traffic_light->lights[index].current = TRAFFIC_LIGHT_GREEN;
+
+                traffic_light->lights[index].target = TRAFFIC_LIGHT_GREEN;
+            } else {
+                traffic_light->lights[index].current = TRAFFIC_LIGHT_RED;
+
+                traffic_light->lights[index].target = TRAFFIC_LIGHT_RED;
+            }
+
+            index++;
+        }
+    }
+
+    /**
+     * @brief Inicializa a máquina de estados.
+     *
+     * @details
+     * A simulação inicia com o eixo horizontal liberado. O contador de
+     * ticks é configurado para determinar quanto tempo essa fase deverá
+     * permanecer ativa antes da primeira transição.
+     */
+    traffic_light->phase = PHASE_GREEN;
+    traffic_light->phase_ticks = GREEN_TIME;
+    traffic_light->current_axis = AXIS_HORIZONTAL;
+    traffic_light->last_tick = 0;
+
+    /**
+     * @brief Retorna o controlador completamente inicializado.
+     */
+    return traffic_light;
 }
 
 /*
@@ -337,40 +324,39 @@ TrafficLight *traffic_light_new(int num, Intersection *intersections) {
  * @param traffic_light Ponteiro para o controlador a ser destruído.
  */
 void traffic_light_destroy(TrafficLight *traffic_light) {
+    /*
+     * Verifica se o controlador é válido.
+     *
+     * A função free() aceita ponteiros nulos, porém acessar membros de uma
+     * estrutura inexistente resultaria em comportamento indefinido.
+     * Portanto, caso o controlador não exista, a função apenas retorna.
+     */
+    if (traffic_light == NULL) {
+        return;
+    }
 
-  /*
-   * Verifica se o controlador é válido.
-   *
-   * A função free() aceita ponteiros nulos, porém acessar membros de uma
-   * estrutura inexistente resultaria em comportamento indefinido.
-   * Portanto, caso o controlador não exista, a função apenas retorna.
-   */
-  if (traffic_light == NULL) {
-    return;
-  }
+    /*
+     * Libera o vetor contendo todas as luzes da simulação.
+     *
+     * Cada posição deste vetor representa o estado de um WaitPoint da
+     * malha viária. Após sua liberação, o ponteiro é definido como NULL
+     * para evitar referências pendentes.
+     */
+    free(traffic_light->lights);
+    traffic_light->lights = NULL;
 
-  /*
-   * Libera o vetor contendo todas as luzes da simulação.
-   *
-   * Cada posição deste vetor representa o estado de um WaitPoint da
-   * malha viária. Após sua liberação, o ponteiro é definido como NULL
-   * para evitar referências pendentes.
-   */
-  free(traffic_light->lights);
-  traffic_light->lights = NULL;
+    /*
+     * Destrói o mutex utilizado para sincronizar o acesso ao controlador.
+     *
+     * Após esta chamada o mutex deixa de ser um objeto válido e não poderá
+     * mais ser utilizado por nenhuma thread da aplicação.
+     */
+    pthread_mutex_destroy(&traffic_light->mutex);
 
-  /*
-   * Destrói o mutex utilizado para sincronizar o acesso ao controlador.
-   *
-   * Após esta chamada o mutex deixa de ser um objeto válido e não poderá
-   * mais ser utilizado por nenhuma thread da aplicação.
-   */
-  pthread_mutex_destroy(&traffic_light->mutex);
-
-  /*
-   * Libera a estrutura principal do controlador.
-   */
-  free(traffic_light);
+    /*
+     * Libera a estrutura principal do controlador.
+     */
+    free(traffic_light);
 }
 
 /**
@@ -399,80 +385,79 @@ void traffic_light_destroy(TrafficLight *traffic_light) {
  * @return NULL.
  */
 void *traffic_light_update(void *args) {
-  if (args == NULL) {
-    return NULL;
-  }
-  TrafficLightArgs *traffic_args = (TrafficLightArgs *)args;
+    if (args == NULL) {
+        return NULL;
+    }
+    TrafficLightArgs *traffic_args = (TrafficLightArgs *) args;
 
-  TrafficLight *traffic_light = traffic_args->traffic_light;
-  Clock *clock = traffic_args->clock;
+    TrafficLight *traffic_light = traffic_args->traffic_light;
+    Clock *clock = traffic_args->clock;
 
-  if (traffic_light == NULL) {
-    return NULL;
-  }
-  if (clock == NULL) {
-    return NULL;
-  }
-
-  /*
-   * Obtém o tick inicial da simulação.
-   *
-   * Este valor será utilizado pelo clock para bloquear esta thread
-   * até que um novo tick seja produzido.
-   */
-  size_t current_tick = clock_get_tick(clock);
-
-  while (current_tick < TICKS) {
+    if (traffic_light == NULL) {
+        return NULL;
+    }
+    if (clock == NULL) {
+        return NULL;
+    }
 
     /*
-     * Aguarda o relógio avançar para o próximo tick.
+     * Obtém o tick inicial da simulação.
      *
-     * A thread permanece bloqueada sem realizar busy waiting.
+     * Este valor será utilizado pelo clock para bloquear esta thread
+     * até que um novo tick seja produzido.
      */
-    clock_signal(clock, current_tick);
+    size_t current_tick = clock_get_tick(clock);
 
-    /*
-     * Atualiza o valor do tick atual.
-     */
-    current_tick = clock_get_tick(clock);
+    while (current_tick < TICKS) {
+        /*
+         * Aguarda o relógio avançar para o próximo tick.
+         *
+         * A thread permanece bloqueada sem realizar busy waiting.
+         */
+        clock_signal(clock, current_tick);
 
-    /*
-     * Garante acesso exclusivo ao controlador durante toda a
-     * atualização das luzes.
-     */
-    pthread_mutex_lock(&traffic_light->mutex);
+        /*
+         * Atualiza o valor do tick atual.
+         */
+        current_tick = clock_get_tick(clock);
 
-    /*
-     * Consulta a prioridade da ambulância.
-     *
-     * Caso exista uma ambulância solicitando prioridade, esta
-     * informação será utilizada pela função update_targets().
-     */
-    // TODO:
-    // Coord priority = vehicle_get_priority();
+        /*
+         * Garante acesso exclusivo ao controlador durante toda a
+         * atualização das luzes.
+         */
+        pthread_mutex_lock(&traffic_light->mutex);
 
-    /*
-     * Calcula o estado alvo de todas as luzes.
-     */
-    update_targets(traffic_light);
+        /*
+         * Consulta a prioridade da ambulância.
+         *
+         * Caso exista uma ambulância solicitando prioridade, esta
+         * informação será utilizada pela função update_targets().
+         */
+        // TODO:
+        // Coord priority = vehicle_get_priority();
 
-    /*
-     * Executa uma etapa da máquina de estados.
-     */
-    update_cycle(traffic_light);
+        /*
+         * Calcula o estado alvo de todas as luzes.
+         */
+        update_targets(traffic_light);
 
-    /*
-     * Registra o último tick processado.
-     */
-    traffic_light->last_tick = current_tick;
+        /*
+         * Executa uma etapa da máquina de estados.
+         */
+        update_cycle(traffic_light);
 
-    /*
-     * Libera o controlador para outras threads.
-     */
-    pthread_mutex_unlock(&traffic_light->mutex);
-  }
+        /*
+         * Registra o último tick processado.
+         */
+        traffic_light->last_tick = current_tick;
 
-  return NULL;
+        /*
+         * Libera o controlador para outras threads.
+         */
+        pthread_mutex_unlock(&traffic_light->mutex);
+    }
+
+    return NULL;
 }
 
 /**
@@ -498,68 +483,68 @@ void *traffic_light_update(void *args) {
 
 TrafficLightColor traffic_light_get_current_light(TrafficLight *traffic_light,
                                                   Coord position) {
-  /**
-   * @brief Verifica se os parâmetros recebidos são válidos.
-   *
-   * @details
-   * Não é possível realizar a consulta caso o controlador não exista.
-   * Em caso de erro, retorna TRAFFIC_LIGHT_NONE indicando ausência de
-   * uma luz válida.
-   */
-  if (traffic_light == NULL) {
-    return TRAFFIC_LIGHT_NONE;
-  }
+    /**
+     * @brief Verifica se os parâmetros recebidos são válidos.
+     *
+     * @details
+     * Não é possível realizar a consulta caso o controlador não exista.
+     * Em caso de erro, retorna TRAFFIC_LIGHT_NONE indicando ausência de
+     * uma luz válida.
+     */
+    if (traffic_light == NULL) {
+        return TRAFFIC_LIGHT_NONE;
+    }
 
-  /**
-   * @brief Obtém acesso exclusivo ao vetor de luzes.
-   *
-   * @details
-   * A thread responsável pelos semáforos pode alterar o estado das
-   * luzes simultaneamente. O mutex garante que a leitura seja realizada
-   * de forma consistente.
-   */
-  pthread_mutex_lock(&traffic_light->mutex);
+    /**
+     * @brief Obtém acesso exclusivo ao vetor de luzes.
+     *
+     * @details
+     * A thread responsável pelos semáforos pode alterar o estado das
+     * luzes simultaneamente. O mutex garante que a leitura seja realizada
+     * de forma consistente.
+     */
+    pthread_mutex_lock(&traffic_light->mutex);
 
-  /**
-   * @brief Procura a luz correspondente à posição informada.
-   *
-   * @details
-   * A busca percorre o vetor de TrafficLightState até encontrar o
-   * WaitPoint associado à coordenada recebida.
-   */
-  int index = find_light(traffic_light, position);
+    /**
+     * @brief Procura a luz correspondente à posição informada.
+     *
+     * @details
+     * A busca percorre o vetor de TrafficLightState até encontrar o
+     * WaitPoint associado à coordenada recebida.
+     */
+    int index = find_light(traffic_light, position);
 
-  /**
-   * @brief Caso nenhuma luz seja encontrada, libera o mutex e informa
-   * que não existe um semáforo associado à posição consultada.
-   */
-  if (index == -1) {
+    /**
+     * @brief Caso nenhuma luz seja encontrada, libera o mutex e informa
+     * que não existe um semáforo associado à posição consultada.
+     */
+    if (index == -1) {
+        pthread_mutex_unlock(&traffic_light->mutex);
+        return TRAFFIC_LIGHT_NONE;
+    }
+
+    /**
+     * @brief Obtém a cor atualmente exibida pela luz encontrada.
+     *
+     * @details
+     * O campo current representa exatamente a cor observada pelos
+     * veículos durante o tick atual da simulação.
+     */
+    TrafficLightColor color = traffic_light->lights[index].current;
+
+    /**
+     * @brief Libera o acesso ao controlador.
+     *
+     * @details
+     * Após a leitura do estado da luz, outras threads podem voltar a
+     * acessar o controlador normalmente.
+     */
     pthread_mutex_unlock(&traffic_light->mutex);
-    return TRAFFIC_LIGHT_NONE;
-  }
 
-  /**
-   * @brief Obtém a cor atualmente exibida pela luz encontrada.
-   *
-   * @details
-   * O campo current representa exatamente a cor observada pelos
-   * veículos durante o tick atual da simulação.
-   */
-  TrafficLightColor color = traffic_light->lights[index].current;
-
-  /**
-   * @brief Libera o acesso ao controlador.
-   *
-   * @details
-   * Após a leitura do estado da luz, outras threads podem voltar a
-   * acessar o controlador normalmente.
-   */
-  pthread_mutex_unlock(&traffic_light->mutex);
-
-  /**
-   * @brief Retorna a cor encontrada.
-   */
-  return color;
+    /**
+     * @brief Retorna a cor encontrada.
+     */
+    return color;
 }
 
 /**
@@ -586,20 +571,19 @@ TrafficLightColor traffic_light_get_current_light(TrafficLight *traffic_light,
  * @retval false A direção pertence ao eixo vertical ou é inválida.
  */
 static bool is_horizontal(Direction direction) {
+    switch (direction) {
+        case DIRECTION_LEFT:
+        case DIRECTION_RIGHT:
+            return true;
 
-  switch (direction) {
-
-  case DIRECTION_LEFT:
-  case DIRECTION_RIGHT:
-    return true;
-
-  case DIRECTION_UP:
-  case DIRECTION_DOWN:
-  case DIRECTION_NONE:
-  default:
-    return false;
-  }
+        case DIRECTION_UP:
+        case DIRECTION_DOWN:
+        case DIRECTION_NONE:
+        default:
+            return false;
+    }
 }
+
 /**
  * @internal
  * @brief Atualiza o estado alvo de todas as luzes da simulação.
@@ -620,48 +604,43 @@ static bool is_horizontal(Direction direction) {
  * @param traffic_light Ponteiro para o controlador de semáforos.
  */
 static void update_targets(TrafficLight *traffic_light) {
+    /**
+     * @brief Percorre todas as luzes cadastradas.
+     */
+    for (int i = 0; i < traffic_light->light_count; i++) {
+        TrafficLightState *light = &traffic_light->lights[i];
 
-  /**
-   * @brief Percorre todas as luzes cadastradas.
-   */
-  for (int i = 0; i < traffic_light->light_count; i++) {
-
-    TrafficLightState *light = &traffic_light->lights[i];
+        /**
+         * @brief Verifica se a luz pertence ao eixo atualmente aberto.
+         *
+         * @details
+         * Quando o eixo da luz coincide com o eixo ativo da máquina de
+         * estados, sua cor alvo passa a ser GREEN. Caso contrário,
+         * permanece RED.
+         */
+        if (is_horizontal(light->wait_point.direction) ==
+            (traffic_light->current_axis == AXIS_HORIZONTAL)) {
+            /**
+             * @brief Define que esta luz deverá permanecer ou tornar-se
+             * verde.
+             */
+            light->target = TRAFFIC_LIGHT_GREEN;
+        } else {
+            /**
+             * @brief Define que esta luz deverá permanecer ou tornar-se
+             * vermelha.
+             */
+            light->target = TRAFFIC_LIGHT_RED;
+        }
+    }
 
     /**
-     * @brief Verifica se a luz pertence ao eixo atualmente aberto.
+     * TODO: Implementar a lógica de prioridade para ambulâncias.
      *
-     * @details
-     * Quando o eixo da luz coincide com o eixo ativo da máquina de
-     * estados, sua cor alvo passa a ser GREEN. Caso contrário,
-     * permanece RED.
+     * Quando houver prioridade ativa, o eixo determinado pela ambulância
+     * deverá substituir temporariamente o eixo definido pela máquina de
+     * estados.
      */
-    if (is_horizontal(light->wait_point.direction) ==
-        (traffic_light->current_axis == AXIS_HORIZONTAL)) {
-
-      /**
-       * @brief Define que esta luz deverá permanecer ou tornar-se
-       * verde.
-       */
-      light->target = TRAFFIC_LIGHT_GREEN;
-
-    } else {
-
-      /**
-       * @brief Define que esta luz deverá permanecer ou tornar-se
-       * vermelha.
-       */
-      light->target = TRAFFIC_LIGHT_RED;
-    }
-  }
-
-  /**
-   * TODO: Implementar a lógica de prioridade para ambulâncias.
-   *
-   * Quando houver prioridade ativa, o eixo determinado pela ambulância
-   * deverá substituir temporariamente o eixo definido pela máquina de
-   * estados.
-   */
 }
 
 /**
@@ -685,88 +664,86 @@ static void update_targets(TrafficLight *traffic_light) {
  * @param light Ponteiro para o estado da luz que será atualizado.
  */
 static void transition_light(TrafficLightState *light) {
-
-  /**
-   * @brief Valida o parâmetro recebido.
-   *
-   * @details
-   * Caso o ponteiro seja inválido, nenhuma atualização pode ser
-   * realizada.
-   */
-  if (light == NULL) {
-    return;
-  }
-
-  /**
-   * @brief Verifica se a luz já atingiu o estado desejado.
-   *
-   * @details
-   * Quando a cor atual coincide com a cor alvo, nenhuma transição é
-   * necessária durante este tick.
-   */
-  if (light->current == light->target) {
-    return;
-  }
-
-  /**
-   * @brief Executa uma etapa da máquina de estados.
-   *
-   * @details
-   * Apenas uma mudança de estado é realizada por chamada da função.
-   */
-  switch (light->current) {
-
-  /**
-   * @brief Inicia o fechamento de uma via.
-   *
-   * @details
-   * Antes de fechar completamente uma via, a luz obrigatoriamente
-   * passa pelo estado YELLOW.
-   */
-  case TRAFFIC_LIGHT_GREEN:
-
-    light->current = TRAFFIC_LIGHT_YELLOW;
-    break;
-
-  /**
-   * @brief Inicia a abertura de uma via.
-   *
-   * @details
-   * Antes de abrir completamente uma via, a luz também passa pelo
-   * estado YELLOW.
-   */
-  case TRAFFIC_LIGHT_RED:
-
-    light->current = TRAFFIC_LIGHT_YELLOW;
-    break;
-
-  /**
-   * @brief Finaliza a transição iniciada anteriormente.
-   *
-   * @details
-   * Quando a luz já está amarela, o próximo estado depende da cor
-   * alvo definida pela máquina de estados.
-   */
-  case TRAFFIC_LIGHT_YELLOW:
-
-    if (light->target == TRAFFIC_LIGHT_GREEN) {
-      light->current = TRAFFIC_LIGHT_GREEN;
-    } else {
-      light->current = TRAFFIC_LIGHT_RED;
+    /**
+     * @brief Valida o parâmetro recebido.
+     *
+     * @details
+     * Caso o ponteiro seja inválido, nenhuma atualização pode ser
+     * realizada.
+     */
+    if (light == NULL) {
+        return;
     }
 
-    break;
+    /**
+     * @brief Verifica se a luz já atingiu o estado desejado.
+     *
+     * @details
+     * Quando a cor atual coincide com a cor alvo, nenhuma transição é
+     * necessária durante este tick.
+     */
+    if (light->current == light->target) {
+        return;
+    }
 
-  /**
-   * @brief Estado inválido.
-   *
-   * @details
-   * Caso a luz esteja em um estado inesperado, nenhuma alteração é
-   * realizada.
-   */
-  default:
-    break;
-  }
+    /**
+     * @brief Executa uma etapa da máquina de estados.
+     *
+     * @details
+     * Apenas uma mudança de estado é realizada por chamada da função.
+     */
+    switch (light->current) {
+        /**
+         * @brief Inicia o fechamento de uma via.
+         *
+         * @details
+         * Antes de fechar completamente uma via, a luz obrigatoriamente
+         * passa pelo estado YELLOW.
+         */
+        case TRAFFIC_LIGHT_GREEN:
+
+            light->current = TRAFFIC_LIGHT_YELLOW;
+            break;
+
+        /**
+         * @brief Inicia a abertura de uma via.
+         *
+         * @details
+         * Antes de abrir completamente uma via, a luz também passa pelo
+         * estado YELLOW.
+         */
+        case TRAFFIC_LIGHT_RED:
+
+            light->current = TRAFFIC_LIGHT_YELLOW;
+            break;
+
+        /**
+         * @brief Finaliza a transição iniciada anteriormente.
+         *
+         * @details
+         * Quando a luz já está amarela, o próximo estado depende da cor
+         * alvo definida pela máquina de estados.
+         */
+        case TRAFFIC_LIGHT_YELLOW:
+
+            if (light->target == TRAFFIC_LIGHT_GREEN) {
+                light->current = TRAFFIC_LIGHT_GREEN;
+            } else {
+                light->current = TRAFFIC_LIGHT_RED;
+            }
+
+            break;
+
+        /**
+         * @brief Estado inválido.
+         *
+         * @details
+         * Caso a luz esteja em um estado inesperado, nenhuma alteração é
+         * realizada.
+         */
+        default:
+            break;
+    }
 }
 
 /**
@@ -791,83 +768,81 @@ static void transition_light(TrafficLightState *light) {
  * @param traffic_light Controlador global dos semáforos.
  */
 static void update_cycle(TrafficLight *traffic_light) {
+    /**
+     * @brief Consome um tick da fase atual.
+     *
+     * @details
+     * Cada fase (GREEN ou YELLOW) permanece ativa durante um número
+     * determinado de ticks. A cada chamada desta função, um tick é
+     * consumido.
+     */
+    traffic_light->phase_ticks--;
 
-  /**
-   * @brief Consome um tick da fase atual.
-   *
-   * @details
-   * Cada fase (GREEN ou YELLOW) permanece ativa durante um número
-   * determinado de ticks. A cada chamada desta função, um tick é
-   * consumido.
-   */
-  traffic_light->phase_ticks--;
-
-  /**
-   * @brief Verifica se a fase atual ainda não terminou.
-   *
-   * @details
-   * Caso ainda exista tempo restante, nenhuma alteração na máquina de
-   * estados é realizada durante este tick.
-   */
-  if (traffic_light->phase_ticks > 0) {
-    return;
-  }
-
-  /**
-   * @brief Trata a mudança de fase.
-   */
-  switch (traffic_light->phase) {
-
-  /**
-   * @brief Final do período verde.
-   *
-   * @details
-   * O eixo atualmente aberto permanecerá amarelo durante alguns
-   * ticks antes de ser completamente fechado.
-   */
-  case PHASE_GREEN:
-
-    traffic_light->phase = PHASE_YELLOW;
-    traffic_light->phase_ticks = YELLOW_TIME;
-
-    break;
-
-  /**
-   * @brief Final do período amarelo.
-   *
-   * @details
-   * Após o tempo de segurança da luz amarela:
-   *
-   * - o eixo ativo é invertido;
-   * - os estados alvo das luzes são recalculados;
-   * - inicia-se um novo período verde.
-   */
-  case PHASE_YELLOW:
-
-    if (traffic_light->current_axis == AXIS_HORIZONTAL) {
-      traffic_light->current_axis = AXIS_VERTICAL;
-    } else {
-      traffic_light->current_axis = AXIS_HORIZONTAL;
+    /**
+     * @brief Verifica se a fase atual ainda não terminou.
+     *
+     * @details
+     * Caso ainda exista tempo restante, nenhuma alteração na máquina de
+     * estados é realizada durante este tick.
+     */
+    if (traffic_light->phase_ticks > 0) {
+        return;
     }
 
-    update_targets(traffic_light);
+    /**
+     * @brief Trata a mudança de fase.
+     */
+    switch (traffic_light->phase) {
+        /**
+         * @brief Final do período verde.
+         *
+         * @details
+         * O eixo atualmente aberto permanecerá amarelo durante alguns
+         * ticks antes de ser completamente fechado.
+         */
+        case PHASE_GREEN:
 
-    traffic_light->phase = PHASE_GREEN;
-    traffic_light->phase_ticks = GREEN_TIME;
+            traffic_light->phase = PHASE_YELLOW;
+            traffic_light->phase_ticks = YELLOW_TIME;
 
-    break;
-  }
+            break;
 
-  /**
-   * @brief Atualiza todas as luzes da simulação.
-   *
-   * @details
-   * Cada luz executa exatamente uma etapa da máquina de estados,
-   * aproximando sua cor atual da cor alvo calculada anteriormente.
-   */
-  for (int i = 0; i < traffic_light->light_count; i++) {
-    transition_light(&traffic_light->lights[i]);
-  }
+        /**
+         * @brief Final do período amarelo.
+         *
+         * @details
+         * Após o tempo de segurança da luz amarela:
+         *
+         * - o eixo ativo é invertido;
+         * - os estados alvo das luzes são recalculados;
+         * - inicia-se um novo período verde.
+         */
+        case PHASE_YELLOW:
+
+            if (traffic_light->current_axis == AXIS_HORIZONTAL) {
+                traffic_light->current_axis = AXIS_VERTICAL;
+            } else {
+                traffic_light->current_axis = AXIS_HORIZONTAL;
+            }
+
+            update_targets(traffic_light);
+
+            traffic_light->phase = PHASE_GREEN;
+            traffic_light->phase_ticks = GREEN_TIME;
+
+            break;
+    }
+
+    /**
+     * @brief Atualiza todas as luzes da simulação.
+     *
+     * @details
+     * Cada luz executa exatamente uma etapa da máquina de estados,
+     * aproximando sua cor atual da cor alvo calculada anteriormente.
+     */
+    for (int i = 0; i < traffic_light->light_count; i++) {
+        transition_light(&traffic_light->lights[i]);
+    }
 }
 
 /**
@@ -896,56 +871,53 @@ static void update_cycle(TrafficLight *traffic_light) {
  * @retval -1 Não existe nenhuma luz associada à coordenada informada.
  */
 static int find_light(TrafficLight *traffic_light, Coord position) {
-
-  /**
-   * @brief Valida os parâmetros recebidos.
-   *
-   * @details
-   * Caso o controlador seja inválido, nenhuma busca pode ser realizada.
-   */
-  if (traffic_light == NULL) {
-    return -1;
-  }
-
-  /**
-   * @brief Percorre todas as luzes cadastradas.
-   *
-   * @details
-   * O controlador mantém um vetor linear contendo o estado de todos os
-   * semáforos da simulação. Cada elemento corresponde a um único
-   * WaitPoint existente na malha viária.
-   */
-  for (int i = 0; i < traffic_light->light_count; i++) {
-
     /**
-     * @brief Verifica se a posição da luz coincide com a coordenada
-     * procurada.
+     * @brief Valida os parâmetros recebidos.
      *
      * @details
-     * A comparação é realizada utilizando as componentes X e Y da
-     * coordenada. Havendo igualdade em ambas, a luz correspondente foi
-     * encontrada.
+     * Caso o controlador seja inválido, nenhuma busca pode ser realizada.
      */
-    if (traffic_light->lights[i].wait_point.cell.x == position.x &&
-        traffic_light->lights[i].wait_point.cell.y == position.y) {
-
-      /**
-       * @brief Retorna o índice da luz localizada.
-       *
-       * @details
-       * O índice retornado poderá ser utilizado para acessar
-       * diretamente a estrutura TrafficLightState correspondente.
-       */
-      return i;
+    if (traffic_light == NULL) {
+        return -1;
     }
-  }
 
-  /**
-   * @brief Nenhuma luz foi encontrada.
-   *
-   * @details
-   * A coordenada informada não pertence a nenhum WaitPoint cadastrado
-   * pelo controlador.
-   */
-  return -1;
+    /**
+     * @brief Percorre todas as luzes cadastradas.
+     *
+     * @details
+     * O controlador mantém um vetor linear contendo o estado de todos os
+     * semáforos da simulação. Cada elemento corresponde a um único
+     * WaitPoint existente na malha viária.
+     */
+    for (int i = 0; i < traffic_light->light_count; i++) {
+        /**
+         * @brief Verifica se a posição da luz coincide com a coordenada
+         * procurada.
+         *
+         * @details
+         * A comparação é realizada utilizando as componentes X e Y da
+         * coordenada. Havendo igualdade em ambas, a luz correspondente foi
+         * encontrada.
+         */
+        if (traffic_light->lights[i].wait_point.cell.x == position.x &&
+            traffic_light->lights[i].wait_point.cell.y == position.y) {
+            /**
+             * @brief Retorna o índice da luz localizada.
+             *
+             * @details
+             * O índice retornado poderá ser utilizado para acessar
+             * diretamente a estrutura TrafficLightState correspondente.
+             */
+            return i;
+        }
+    }
+
+    /**
+     * @brief Nenhuma luz foi encontrada.
+     *
+     * @details
+     * A coordenada informada não pertence a nenhum WaitPoint cadastrado
+     * pelo controlador.
+     */
+    return -1;
 }
