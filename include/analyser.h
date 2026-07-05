@@ -1,0 +1,48 @@
+/**
+ * @file analyser.h
+ *
+ * @date 2026-07-04
+ */
+
+#ifndef URBAN_TRAFFIC_ANALYSER_H
+#define URBAN_TRAFFIC_ANALYSER_H
+
+#include "map.h"
+#include "clock.h"
+
+typedef enum {
+    REQUEST_EMPTY,
+    REQUEST_PENDING,
+    REQUEST_APPROVED,
+    REQUEST_DENIED,
+} RequestStatus;
+
+typedef struct {
+    Coord from;
+    Coord to;
+    RequestStatus status;
+} MovementRequest;
+
+typedef struct Analyser Analyser;
+
+typedef struct {
+    Analyser *analyser;
+    Clock *clock;
+    Map *map;
+}AnalyserArgs;
+
+Analyser *analyser_new();
+
+void analyser_destroy(Analyser *analyser);
+
+void *analyser_update(void *analyser_args);
+
+void analyser_request(Analyser *analyser, int id, MovementRequest request);
+
+RequestStatus analyser_get_status(Analyser *analyser, int id);
+
+MovementRequest *analyser_get_previous_requests(Analyser *analyser);
+
+void analyser_swap_buffers(Analyser *analyser);
+
+#endif //URBAN_TRAFFIC_ANALYSER_H
