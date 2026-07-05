@@ -404,7 +404,10 @@ void *vehicle_update(void *vehicle_args) {
         if (try_update_position(map, vehicle, target, clock) == true) {
             const TileType target_tile = map_get_tile_type(map, vehicle->position);
             const Direction new_direction = find_direction_from_tile(target_tile);
-            vehicle->direction = new_direction;
+
+            if (new_direction != DIRECTION_NONE) {
+                vehicle->direction = new_direction;
+            }
 
             // TODO: notificar se a nova direção é DIRECTION_NONE
         }
