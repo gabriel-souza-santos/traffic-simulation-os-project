@@ -382,13 +382,40 @@ void vehicle_destroy(Vehicle *vehicle) {
     free(vehicle);
 }
 
-
 void *vehicle_update(void *vehicle) {
     // Rotina principal executada por cada thread de veículo.
     // CRITÉRIOS: Respeitar direção da via, não atravessar paredes (BLOCKED) e não sair do mapa.
     // Deve chamar clock_signal ao finalizar
 
-    // TODO
+    if (vehicle == NULL) {
+        LOG("Erro: A thread foi iniciada com um ponteiro de veículo NULO.");
+        return NULL;
+    }
+
+    Vehicle *self = (Vehicle *)vehicle;
+
+    while (1) {
+        // Consulta o turno atual do relógio discreto
+        size_t current_tick = clock_get_tick(global_clock);
+
+        // Calcula qual seria a próxima posição ideal com base na direção atual do veículo
+        Coord next_position = find_next_position(self);
+
+        // Tenta realizar a movimentação pela malha
+        // update_position valida internamente as restrições físicas e temporais
+        if (update_position(global_map, self, next_position, global_clock)) {
+
+            // Acessa o tipo de tile diretamente através da API do mapa
+            // usando a posição atual atualizada do próprio veículo.
+            if (find_direction_from_tile(map_get_tile_type(global_map, self->position)) != DIRECTION_NONE) {
+                self->direction = find_direction_from_tile(map_get_tile_type(global_map, self->position));
+            }
+        }
+
+        //Informa à barreira de sincronização que este veículo processou o turno atual.
+        // Mesmo que o carro tenha ficado parado, ele DEVE enviar o sinal para o relógio não travar.
+        clock_signal(global_clock, current_tick);
+    }
 
     return NULL;
 }
