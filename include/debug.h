@@ -26,10 +26,31 @@
 #define DEBUG 1
 #endif //DEBUG
 
+/**
+ * @brief Registra uma mensagem de depuração formatada no fluxo de erro padrão.
+ *
+ * Função base utilizada internamente pelas macros deste módulo (TRY, LOG,
+ * LOG_IF, CHECK_NULL). Em geral não deve ser chamada diretamente — prefira
+ * as macros, que preenchem automaticamente os parâmetros de contexto
+ * (__FILE__, __LINE__, __func__).
+ *
+ * @param file Nome do arquivo-fonte onde a chamada ocorreu.
+ * @param line Número da linha onde a chamada ocorreu.
+ * @param func Nome da função onde a chamada ocorreu.
+ * @param fmt  String de formato (estilo printf) da mensagem a ser exibida.
+ * @param ...  Argumentos variádicos correspondentes ao formato.
+ */
+void debug_log(
+    const char *file,
+    const int  line,
+    const char *func,
+    const char *fmt,
+    ...);
+
 #if DEBUG
 
 /**
- * @def TRY(expr_)
+ * @def TRY(expr)
  * @brief Executa uma expressão e aborta o programa em caso de falha.
  *
  * Assume que a expressão retorna 0 para sucesso e qualquer outro valor
@@ -38,61 +59,101 @@
  * captura o erro, imprime o nome do arquivo, a linha e a expressão exata
  * no fluxo de erro padrão (`stderr`), e encerra a simulação.
  *
- * @param expr_ A expressão ou chamada de função a ser executada e avaliada.
+ * @param expr A expressão ou chamada de função a ser executada e avaliada.
  */
-#define TRY(expr_)                                  \
+#define TRY(expr)                                   \
     do {                                            \
-        if ((expr_) != 0) {                         \
-            fprintf(stderr,                         \
-                "On file %s:%d\n"                   \
-                "Error: fail to execute '%s'\n",    \
-                __FILE__,                           \
-                __LINE__,                           \
-                #expr_                              \
-            );                                      \
+        if ((expr) != 0) {                          \
+            debug_log(                              \
+                __FILE__, __LINE__, __func__,       \
+                "Error: fail to execute '%s'",      \
+                #expr);                             \
             exit(EXIT_FAILURE);                     \
         }                                           \
     } while (0)
-/* TRY */
+
 
 /**
- * @def CHECK_NULL(ptr_)
+ * @def LOG(...)
+ * @brief Registra uma mensagem de depuração com contexto automático de arquivo,
+ *        linha e função.
+ *
+ * Atalho para debug_log que injeta automaticamente __FILE__, __LINE__ e
+ * __func__. Aceita os mesmos argumentos de formato que printf.
+ *
+ * Compilado como no-op em modo Release (DEBUG=0).
+ *
+ * @param ... String de formato (estilo printf) seguida dos argumentos
+ *            correspondentes.
+ */
+#define LOG(...) \
+    debug_log(__FILE__, __LINE__, __func__, __VA_ARGS__)
+
+
+/**
+ * @def LOG_IF(cond, ...)
+ * @brief Registra uma mensagem de depuração condicionalmente.
+ *
+ * Equivalente a LOG, mas a mensagem só é emitida se @p cond for verdadeiro.
+ * A condição é avaliada apenas uma vez, sem efeitos colaterais de avaliação
+ * múltipla.
+ *
+ * Compilado como no-op em modo Release (DEBUG=0).
+ *
+ * @param cond Condição booleana que habilita o log quando verdadeira.
+ * @param ...  String de formato (estilo printf) seguida dos argumentos
+ *             correspondentes.
+ */
+#define LOG_IF(cond, ...)                           \
+    do {                                            \
+        if (cond) {                                 \
+            LOG(__VA_ARGS__);                       \
+        }                                           \
+    } while (0)
+
+
+/**
+ * @def CHECK_NULL(ptr)
  * @brief Checa se um determinado ponteiro é nulo e aborta se for o caso.
+ *
+ * @deprecated Prefira usar @c LOG ou @c LOG_IF.
  *
  * Utilizada para garantir a segurança na manipulação de memória. Deve ser
  * usada logo após alocações dinâmicas (ex: `malloc`, `calloc`) ou no início
  * de funções para validar argumentos obrigatórios. Caso o ponteiro seja NULL,
  * relata o arquivo e a linha do erro no `stderr` e aborta a execução.
  *
- * @param ptr_ O ponteiro que será testado contra NULL.
+ * @param ptr O ponteiro que será testado contra NULL.
  */
-#define CHECK_NULL(ptr_)                            \
+#define CHECK_NULL(ptr)                             \
     do {                                            \
-        if ((ptr_) == NULL) {                       \
+        if ((ptr) == NULL) {                        \
             fprintf(stderr,                         \
-                "On file %s:%d\n"                   \
+                "At %s:%d (%s):\n"                  \
                 "Error: '%s' cannot be NULL\n"      \
                 "A NULL pointer was provided or "   \
                 "memory allocation has failed\n",   \
                 __FILE__,                           \
                 __LINE__,                           \
-                #ptr_                               \
+                __func__,                           \
+                #ptr                                \
             );                                      \
             exit(EXIT_FAILURE);                     \
         }                                           \
     } while (0)
-/* CHECK_NULL */
+
 
 #else //#if DEBUG
 
 /*
  * Modo Release (Produção):
  * As macros são redefinidas para minimizar o overhead de processamento.
- * TRY apenas executa a expressão silenciosamente e CHECK_NULL é ignorada.
  */
 
-#define TRY(expr_) (expr_)
-#define CHECK_NULL(ptr_) (ptr_)
+#define TRY(expr)           if (expr) exit(EXIT_FAILURE);
+#define LOG(...)            do { } while (0)
+#define LOG_IF(cond, ...)   do { } while (0)
+#define CHECK_NULL(ptr)     do { } while (0)
 
 #endif //#if DEBUG #else
 
