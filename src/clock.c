@@ -10,25 +10,25 @@
 
 #include "clock.h"
 #include "debug.h"
-#include "vehicle.h"
 
 
 /**
  * @internal
- * @brief Estrutura interna do relógio global e seus mecanismos de sincronização.
+ * @brief Estrutura interna do relógio global e os seus mecanismos de sincronização.
  *
  * Implementa uma barreira de duas fases entre a thread do relógio e as
- * threads dos veículos: cada veículo sinaliza conclusão do tick atual via
+ * threads trabalhadoras: cada thread sinaliza conclusão do tick atual via
  * @c cond_clock (o último a terminar acorda o relógio); o relógio, ao
- * avançar o tick, libera todos os veículos de uma só vez via
- * @c cond_vehicles (broadcast).
+ * avançar o tick, libera todos os trabalhadores de uma só vez via
+ * @c cond_workers (broadcast).
  */
 struct Clock {
-    size_t current_tick;            /**< Tick atual da simulação. Escrito apenas por clock_update, sob mutex. */
-    size_t completed_count;         /**< Quantidade de veículos que já sinalizaram conclusão do tick atual. */
-    pthread_mutex_t mutex;          /**< Protege current_tick e completed_count. */
-    pthread_cond_t cond_clock;      /**< Sinalizada pelo último veículo a concluir o tick; acorda a thread do relógio. */
-    pthread_cond_t cond_vehicles;   /**< Broadcast pela thread do relógio ao avançar o tick; acorda todos os veículos. */
+    size_t current_tick;        /**< Tick atual da simulação. Escrito apenas por clock_update, sob mutex. */
+    size_t completed_count;     /**< Quantidade de trabalhadores que já sinalizaram conclusão do tick atual. */
+    size_t total_workers;       /**< Quantidade total de trabalhadores. */
+    pthread_mutex_t mutex;      /**< Protege current_tick e completed_count. */
+    pthread_cond_t cond_clock;  /**< Sinalizada pelo último trabalhadores a concluir o tick; acorda a thread do relógio. */
+    pthread_cond_t cond_workers;/**< Broadcast pela thread do relógio ao avançar o tick; acorda todos os trabalhadores. */
 };
 
 
@@ -40,9 +40,13 @@ struct Clock {
  * @c pthread_*_init, encerrando o programa (via @c TRY) em caso de
  * falha de alocação ou inicialização.
  */
-Clock *clock_new(void) {
-    Clock *clock = malloc(sizeof(Clock));
+Clock *clock_new(const size_t total_workers) {
+    if (total_workers == 0) {
+        LOG("Error: parameter 'total_workers' cannot be zero.");
+        return NULL;
+    }
 
+    Clock *clock = malloc(sizeof(Clock));
     if (!clock) {
         LOG("Error: failed to allocate memory for 'clock'.");
         return NULL;
@@ -50,7 +54,9 @@ Clock *clock_new(void) {
 
     TRY(pthread_mutex_init(&clock->mutex, NULL));
     TRY(pthread_cond_init(&clock->cond_clock, NULL));
-    TRY(pthread_cond_init(&clock->cond_vehicles, NULL));
+    TRY(pthread_cond_init(&clock->cond_workers, NULL));
+
+    clock->total_workers = total_workers;
     clock->current_tick = 0;
     clock->completed_count = 0;
 
@@ -73,7 +79,7 @@ void clock_destroy(Clock *clock) {
 
     TRY(pthread_mutex_destroy(&clock->mutex));
     TRY(pthread_cond_destroy(&clock->cond_clock));
-    TRY(pthread_cond_destroy(&clock->cond_vehicles));
+    TRY(pthread_cond_destroy(&clock->cond_workers));
     free(clock);
 }
 
@@ -113,26 +119,26 @@ size_t clock_get_tick(Clock *clock) {
  * @note O uso de @c while (em vez de @c if) ao redor de @c pthread_cond_wait
  *       protege contra despertar repentino de uma thread.
  */
-void *clock_update(void *arg) {
-
-    if (!arg) {
-        LOG("Error: thread argument 'clock' is NULL.");
+void *clock_update(void *clock_args) {
+    if (!clock_args) {
+        LOG("Error: parameter 'clock_args' is NULL.");
         return NULL;
     }
 
-    Clock *clock = (Clock *)arg;
+    const ClockArgs *args = (ClockArgs *)clock_args;
+    Clock *clock = args->clock;
 
     for (int i = 0; i < TICKS; i++) {
         TRY(pthread_mutex_lock(&clock->mutex));
 
-        while (clock->completed_count < VEHICLE_COUNT) {
+        while (clock->completed_count < clock->total_workers) {
             TRY(pthread_cond_wait(&clock->cond_clock, &clock->mutex));
         }
 
         clock->completed_count = 0;
         clock->current_tick++;
 
-        TRY(pthread_cond_broadcast(&clock->cond_vehicles));
+        TRY(pthread_cond_broadcast(&clock->cond_workers));
         TRY(pthread_mutex_unlock(&clock->mutex));
     }
 
@@ -142,11 +148,11 @@ void *clock_update(void *arg) {
 
 /**
  * @internal
- * @brief Implementação da sinalização de conclusão de tick por uma thread de veículo.
+ * @brief Implementação da sinalização de conclusão de tick por uma thread trabalhadora.
  *
  * Incrementa @c completed_count sob lock; se o valor atingir a quantidade de
- * veículos, sinaliza @c cond_clock para acordar a thread do relógio. Em seguida,
- * bloqueia em @c cond_vehicles enquanto o tick atual permanecer igual ao último
+ * trabalhadores, sinaliza @c cond_clock para acordar a thread do relógio. Em seguida,
+ * bloqueia em @c cond_workers enquanto o tick atual permanecer igual ao último
  * tick informado pela thread, sem busy-waiting, até o relógio avançar.
  */
 void clock_signal(Clock *clock, const size_t tick) {
@@ -158,18 +164,18 @@ void clock_signal(Clock *clock, const size_t tick) {
     TRY(pthread_mutex_lock(&clock->mutex));
     clock->completed_count++;
 
-    LOG_IF(clock->completed_count > VEHICLE_COUNT,
+    LOG_IF(clock->completed_count > clock->total_workers,
         "Warning: 'clock->completed_count' have been corrupted\n."
         "Max: %zu,\ncompleted_count: %zu.",
-        VEHICLE_COUNT, clock->completed_count);
+        clock->total_workers, clock->completed_count);
 
 
-    if (clock->completed_count == VEHICLE_COUNT) {
+    if (clock->completed_count == clock->total_workers) {
         TRY(pthread_cond_signal(&clock->cond_clock));
     }
 
     while (clock->current_tick == tick) {
-        TRY(pthread_cond_wait(&clock->cond_vehicles, &clock->mutex));
+        TRY(pthread_cond_wait(&clock->cond_workers, &clock->mutex));
     }
 
     TRY(pthread_mutex_unlock(&clock->mutex));
