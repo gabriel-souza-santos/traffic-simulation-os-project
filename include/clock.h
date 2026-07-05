@@ -21,7 +21,7 @@
  * por booleanos/variáveis de condição internas para indicar que
  * a simulação está ativa.
  */
-#define TICKS 1000
+#define TICKS 20
 
 
 /**

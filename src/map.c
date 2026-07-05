@@ -496,8 +496,8 @@ Coord map_reserve_spawn_point(Map *map) {
 
     // TODO: Gerar melhor distribuição para implementações futuras
 
-    for (size_t y = 0; y < map->height; y++) {
-        for (size_t x = 0; x < map->width; x++) {
+    for (size_t y = 1; y < map->height; y++) {
+        for (size_t x = 2; x < map->width; x++) {
             spawn_point.x = (int)x;
             spawn_point.y = (int)y;
             Tile *tile = tile_at(map, spawn_point);
@@ -514,4 +514,29 @@ Coord map_reserve_spawn_point(Map *map) {
     TRY(pthread_mutex_unlock(&map->mutex));
     LOG("Warning: failed to found an available spawn point coordinate.");
     return NULL_COORD;
+}
+
+void map_debug_print__(Map *map) {
+    if (!map) return;
+
+    // Limpa o terminal
+    //printf("\033[H\033[2J");
+    system("clear");
+    fflush(stdout);
+
+    for (size_t y = 0; y < map->height; y++) {
+        for (size_t x = 0; x < map->width; x++) {
+            const Coord pos = {(int)x, (int)y};
+            const Tile *tile = tile_at(map, pos);
+
+            if (tile->is_occupied && tile->type != TILE_BLOCKED) {
+                printf("@");          // célula ocupada por veículo
+            } else {
+                printf("%c", tile->type == TILE_BLOCKED ? '#' : ' ');
+            }
+        }
+        printf("\n");
+    }
+
+    fflush(stdout);
 }

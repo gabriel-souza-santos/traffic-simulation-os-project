@@ -178,4 +178,6 @@ bool map_transfer_occupant(Map *map, Coord from, Coord to);
  */
 Coord map_reserve_spawn_point(Map *map);
 
+void map_debug_print__(Map *map);
+
 #endif //URBAN_TRAFFIC_MAP_H

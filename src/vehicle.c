@@ -10,10 +10,12 @@
  */
 
 
+#include <stdio.h> 
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "vehicle.h"
 #include "clock.h"
@@ -372,6 +374,8 @@ Vehicle *vehicle_new(Map *map, const int id) {
         return NULL;
     }
 
+    printf("vehicle(%d) x: %d, y: %d.\n", vehicle->id, vehicle->position.x, vehicle->position.y);
+
     return vehicle;
 }
 
@@ -383,14 +387,12 @@ Vehicle *vehicle_new(Map *map, const int id) {
 void vehicle_destroy(Vehicle *vehicle) {
     // Libera a memória alocada para o contexto do veículo.
     LOG_IF(vehicle == NULL, "Warning: parameter 'vehicle' is NULL.");
+    printf("vehicle(%d) x: %d, y: %d.\n", vehicle->id, vehicle->position.x, vehicle->position.y);
     free(vehicle);
 }
 
 
 void *vehicle_update(void *vehicle_args) {
-    // Rotina principal executada por cada thread de veículo.
-    // CRITÉRIOS: Respeitar direção da via, não atravessar paredes (BLOCKED) e não sair do mapa.
-    // Deve chamar clock_signal ao finalizar
 
     VehicleArgs *args = (VehicleArgs *)vehicle_args;
 
@@ -398,24 +400,24 @@ void *vehicle_update(void *vehicle_args) {
     Map *map = args->map;
     Vehicle *vehicle = args->vehicle;
 
-    // TODO: Atualmente usa o número de TICKS pré fixado, será mudado em breve
     for (int i = 0; i < TICKS; ++i) {
         const Coord target = find_next_position(vehicle);
 
-        // TODO: Notificar caso 'target' esteja fora do mapa
-
-        // Se a sua posição foi atualizada no mapa alteramos a sua direção
         if (try_update_position(map, vehicle, target, clock) == true) {
             const TileType target_tile = map_get_tile_type(map, vehicle->position);
             const Direction new_direction = find_direction_from_tile(target_tile);
-            vehicle->direction = new_direction;
-
-            // TODO: notificar se a nova direção é DIRECTION_NONE
+            if (new_direction != DIRECTION_NONE) {
+                vehicle->direction = new_direction;
+            }
         }
 
-        // TODO: Usar em um tipo mais adequado que 'size_t' para o clock
+        // Debug temporário — remove quando o renderizador estiver pronto
+        if (vehicle->id == 0) {  // apenas um veículo imprime, evita saída duplicada
+            usleep(1000000);
+            map_debug_print__(map);
+        }
+        //printf("(id: %d)    x: %d, y: %d\n", vehicle->id, vehicle->position.x, vehicle->position.y);
 
-        // Dorme até o clock atualizar o tick
         const size_t current_tick = clock_get_tick(clock);
         clock_signal(clock, current_tick);
     }
