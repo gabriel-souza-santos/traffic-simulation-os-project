@@ -35,6 +35,7 @@ e prevenção de deadlocks.
     └── 📄 traffic_light.c # Sincronização dos tempos de abertura/fechamento das vias
     └── 📄 vehicle.c       # Funções para veículos deslocamento no mapa, criação e destruição
 
+```
 ## Decisões de implementação 
 
 ### Mapa
