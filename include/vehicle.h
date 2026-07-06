@@ -15,14 +15,14 @@
 #include <stdint.h>
 
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
-#define VEHICLE_COUNT 10 // valores permitidos: [10-20]
+#define VEHICLE_COUNT 10 //valores permitidos: [10-20]
 
 /* Garante em tempo de compilação que a contagem de veículos respeite os limites
  * do projeto */
 #if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
 #undef VEHICLE_COUNT
 #define VEHICLE_COUNT 10
-#endif // #if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
+#endif //#if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
 
 /**
  * @brief Classifica o papel e a velocidade de cada veículo na simulação.
@@ -31,14 +31,11 @@
  * em relação aos ticks do relógio global.
  */
 typedef enum {
-  NO_VEHICLE, /**< Valor auxiliar indicando ausência de veículo associado. */
-  AMBULANCE,  /**< Veículo de emergência. Deve ter prioridade em cruzamentos. */
-  CAR_FAST, /**< Carro rápido. Executa o seu movimento a cada 1 tick do relógio.
-             */
-  CAR_MEDIUM, /**< Carro médio. Executa o seu movimento a cada 2 ticks do
-                 relógio. */
-  CAR_SLOW, /**< Carro lento. Executa o seu movimento a cada 4 ticks do relógio.
-             */
+    NO_VEHICLE, /**< Valor auxiliar indicando ausência de veículo associado. */
+    AMBULANCE,  /**< Veículo de emergência. Deve ter prioridade em cruzamentos. */
+    CAR_FAST,   /**< Carro rápido. Executa o seu movimento a cada 1 tick do relógio. */
+    CAR_MEDIUM, /**< Carro médio. Executa o seu movimento a cada 2 ticks do relógio. */
+    CAR_SLOW,   /**< Carro lento. Executa o seu movimento a cada 4 ticks do relógio. */
 } VehicleType;
 
 /**
@@ -47,11 +44,11 @@ typedef enum {
  * acessar e travar (lock) durante o seu turno.
  */
 typedef enum {
-  DIRECTION_NONE,  /**< Veículo parado ou sem direção definida. */
-  DIRECTION_UP,    /**< Movimento para o Norte (Y decrescente na matriz). */
-  DIRECTION_DOWN,  /**< Movimento para o Sul (Y crescente na matriz). */
-  DIRECTION_LEFT,  /**< Movimento para o Oeste (X decrescente na matriz). */
-  DIRECTION_RIGHT, /**< Movimento para o Leste (X crescente na matriz). */
+    DIRECTION_NONE,  /**< Veículo parado ou sem direção definida. */
+    DIRECTION_UP,    /**< Movimento para o Norte (Y decrescente na matriz). */
+    DIRECTION_DOWN,  /**< Movimento para o Sul (Y crescente na matriz). */
+    DIRECTION_LEFT,  /**< Movimento para o Oeste (X decrescente na matriz). */
+    DIRECTION_RIGHT, /**< Movimento para o Leste (X crescente na matriz). */
 } Direction;
 
 /**

@@ -1,8 +1,7 @@
 /**
  * @file vehicle.c
  *
- * @brief Implementação do ciclo de vida e regras de deslocamento sincronizado
- * dos veículos.
+ * @brief Implementação do ciclo de vida e regras de deslocamento sincronizado dos veículos.
  *
  * @author José Dhonatan
  * @author Leticía Dias
@@ -25,10 +24,10 @@
  * @brief Representa o estado de um veículo num dado instante da simulação.
  */
 struct Vehicle {
-  int id;              /**< Identificador único do veículo. */
-  Coord position;      /**< Posição atual na malha do mapa. */
-  Direction direction; /**< Direção de movimento atual. */
-  VehicleType type;    /**< Tipo do veículo (define velocidade e prioridade). */
+    int id;              /**< Identificador único do veículo. */
+    Coord position;      /**< Posição atual na malha do mapa. */
+    Direction direction; /**< Direção de movimento atual. */
+    VehicleType type;    /**< Tipo do veículo (define velocidade e prioridade). */
 };
 
 /**
@@ -40,22 +39,16 @@ struct Vehicle {
  *
  * @param tile_type Tipo de tile a ser interpretado.
  * @return A direção correspondente, ou DIRECTION_NONE se o tile não for
- *         uma via com sentido definido (ex: TILE_ROAD, TILE_WAIT,
- * TILE_BLOCKED).
+ *         uma via com sentido definido (ex: TILE_ROAD, TILE_WAIT, TILE_BLOCKED).
  */
 static Direction find_direction_from_tile(const TileType tile_type) {
-  switch (tile_type) {
-  case TILE_ROAD_UP:
-    return DIRECTION_UP;
-  case TILE_ROAD_DOWN:
-    return DIRECTION_DOWN;
-  case TILE_ROAD_LEFT:
-    return DIRECTION_LEFT;
-  case TILE_ROAD_RIGHT:
-    return DIRECTION_RIGHT;
-  default:
-    return DIRECTION_NONE;
-  }
+    switch (tile_type) {
+        case TILE_ROAD_UP:      return DIRECTION_UP;
+        case TILE_ROAD_DOWN:    return DIRECTION_DOWN;
+        case TILE_ROAD_LEFT:    return DIRECTION_LEFT;
+        case TILE_ROAD_RIGHT:   return DIRECTION_RIGHT;
+        default:                return DIRECTION_NONE;
+    }
 }
 
 /**
@@ -63,9 +56,9 @@ static Direction find_direction_from_tile(const TileType tile_type) {
  * @brief Projeta a coordenada seguinte no mapa com base na direção atual.
  *
  * Calcula a próxima posição aplicando um deslocamento de uma unidade a
- * partir de @p vehicle->position, na direção indicada por @p
- * vehicle->direction. Se a direção for @c DIRECTION_NONE (ou outro valor não
- * mapeado), retorna a própria posição atual sem alteração.
+ * partir de @p vehicle->position, na direção indicada por @p vehicle->direction.
+ * Se a direção for @c DIRECTION_NONE (ou outro valor não mapeado), retorna a
+ * própria posição atual sem alteração.
  *
  * @param vehicle Veículo cuja posição e direção atuais servem de base
  *                para a projeção.
@@ -79,26 +72,17 @@ static Direction find_direction_from_tile(const TileType tile_type) {
  * @see map_is_within_bounds()
  */
 static Coord find_next_position(const Vehicle *vehicle) {
-  Coord next = vehicle->position;
+    Coord next = vehicle->position;
 
-  switch (vehicle->direction) {
-  case DIRECTION_UP:
-    next.y--;
-    break;
-  case DIRECTION_DOWN:
-    next.y++;
-    break;
-  case DIRECTION_LEFT:
-    next.x--;
-    break;
-  case DIRECTION_RIGHT:
-    next.x++;
-    break;
-  default:
-    break;
-  }
+    switch (vehicle->direction) {
+        case DIRECTION_UP:      next.y--;   break;
+        case DIRECTION_DOWN:    next.y++;   break;
+        case DIRECTION_LEFT:    next.x--;   break;
+        case DIRECTION_RIGHT:   next.x++;   break;
+        default:                            break;
+    }
 
-  return next;
+    return next;
 }
 
 /**
@@ -121,23 +105,17 @@ static Coord find_next_position(const Vehicle *vehicle) {
  * não forem satisfeitas.
  */
 static bool should_move_now(const Vehicle *vehicle, const Clock *clock) {
-  if (!vehicle)
-    return false;
+    if (!vehicle) return false;
 
-  const size_t current_tick = clock_get_tick(clock);
+    const size_t current_tick = clock_get_tick(clock);
 
-  switch (vehicle->type) {
-  case AMBULANCE:
-    return true;
-  case CAR_FAST:
-    return true;
-  case CAR_MEDIUM:
-    return current_tick % 2 == 0;
-  case CAR_SLOW:
-    return current_tick % 4 == 0;
-  default:
-    return false;
-  }
+    switch (vehicle->type) {
+        case AMBULANCE:     return true;
+        case CAR_FAST:      return true;
+        case CAR_MEDIUM:    return current_tick % 2 == 0;
+        case CAR_SLOW:      return current_tick % 4 == 0;
+        default:            return false;
+    }
 }
 
 /**
@@ -158,24 +136,22 @@ static bool should_move_now(const Vehicle *vehicle, const Clock *clock) {
  * - Se o movimento tentado for diagonal ou se o destino for a própria célula
  * atual do veículo (distância != 1).
  */
-static bool is_adjacent(const Map *map, const Vehicle *vehicle,
-                        const Coord target) {
-  if (!map || !vehicle)
-    return false;
+static bool is_adjacent(const Map *map, const Vehicle *vehicle, const Coord target) {
+    if (!map || !vehicle) return false;
 
-  // Garante o respeito aos limites da matriz global do mapa
-  if (map_is_within_bounds(map, target) == false) {
-    return false;
-  }
+    // Garante o respeito aos limites da matriz global do mapa
+    if (map_is_within_bounds(map, target) == false) {
+        return false;
+    }
 
-  const Coord current = vehicle->position;
+    const Coord current = vehicle->position;
 
-  const int diff_x = abs(target.x - current.x);
-  const int diff_y = abs(target.y - current.y);
+    const int diff_x = abs(target.x - current.x);
+    const int diff_y = abs(target.y - current.y);
 
-  // Movimento ortogonal direto: a soma das diferenças absolutas deve ser
-  // exatamente 1
-  return diff_x + diff_y == 1;
+    // Movimento ortogonal direto: a soma das diferenças absolutas deve ser
+    // exatamente 1
+    return diff_x + diff_y == 1;
 }
 
 /**
@@ -200,17 +176,16 @@ static bool is_adjacent(const Map *map, const Vehicle *vehicle,
  * concorrência com pthreads.
  */
 static bool has_vehicle_ahead(Map *map, const Vehicle *vehicle) {
-  if (!vehicle || !map)
-    return false;
+    if (!vehicle || !map) return false;
 
-  const Coord next_position = find_next_position(vehicle);
+    const Coord next_position = find_next_position(vehicle);
 
-  // Aborta caso a projeção saia dos limites físicos do mapa da simulação
-  if (map_is_within_bounds(map, next_position) == false) {
-    return false;
-  }
+    // Aborta caso a projeção saia dos limites físicos do mapa da simulação
+    if (map_is_within_bounds(map, next_position) == false) {
+        return false;
+    }
 
-  return map_is_occupied(map, next_position);
+    return map_is_occupied(map, next_position);
 }
 
 /**
@@ -235,34 +210,32 @@ static bool has_vehicle_ahead(Map *map, const Vehicle *vehicle) {
  * - Se o movimento seguir em linha reta respeitando o fluxo natural daquela
  * única faixa.
  */
-static bool is_overtaking(const Map *map, const Vehicle *vehicle,
-                          const Coord target) {
-  if (!vehicle)
+static bool is_overtaking(const Map *map, const Vehicle *vehicle, const Coord target) {
+    if (!vehicle) return false;
+
+    const Coord current_position = vehicle->position;
+    const TileType current_tile = map_get_tile_type(map, current_position);
+
+    // Interseções e pontos de espera permitem conversões/mudanças livres
+    if (current_tile == TILE_ROAD || current_tile == TILE_WAIT) {
+        return false;
+    }
+
+    // Em vias direcionais estritas (^, v, <, >), desvios laterais
+    // configuram ultrapassagem proibida
+    if (current_tile == TILE_ROAD_UP || current_tile == TILE_ROAD_DOWN) {
+        if (target.x != current_position.x) {
+            return true;    // Tentativa de desvio para a esquerda/direita
+        }                   // em fluxo vertical
+    }
+
+    if (current_tile == TILE_ROAD_LEFT || current_tile == TILE_ROAD_RIGHT) {
+        if (target.y != current_position.y) {
+            return true;    // Tentativa de desvio para cima/baixo
+        }                   // em fluxo horizontal
+    }
+
     return false;
-
-  const Coord current_position = vehicle->position;
-  const TileType current_tile = map_get_tile_type(map, current_position);
-
-  // Interseções e pontos de espera permitem conversões/mudanças livres
-  if (current_tile == TILE_ROAD || current_tile == TILE_WAIT) {
-    return false;
-  }
-
-  // Em vias direcionais estritas (^, v, <, >), desvios laterais
-  // configuram ultrapassagem proibida
-  if (current_tile == TILE_ROAD_UP || current_tile == TILE_ROAD_DOWN) {
-    if (target.x != current_position.x) {
-      return true; // Tentativa de desvio para a esquerda/direita
-    } // em fluxo vertical
-  }
-
-  if (current_tile == TILE_ROAD_LEFT || current_tile == TILE_ROAD_RIGHT) {
-    if (target.y != current_position.y) {
-      return true; // Tentativa de desvio para cima/baixo
-    } // em fluxo horizontal
-  }
-
-  return false;
 }
 
 /**
@@ -284,38 +257,37 @@ static bool is_overtaking(const Map *map, const Vehicle *vehicle,
  * @param target Coordenada de destino pretendida.
  * @param clock Relógio global, usado para validar a velocidade do veículo.
  * @return true Se o movimento foi validado e executado com sucesso.
- * @return false Se qualquer validação falhar ou a célula destino estiver
- * indisponível.
+ * @return false Se qualquer validação falhar ou a célula destino estiver indisponível.
  */
-static bool update_position(Map *map, Vehicle *vehicle, const Coord target,
-                            const Clock *clock) {
+static bool try_update_position(Map *map, Vehicle *vehicle,
+    const Coord target, const Clock *clock) {
 
-  if (vehicle == NULL || clock == NULL)
-    return false;
+    if (vehicle == NULL || clock == NULL)
+        return false;
 
-  // Valida restrições temporais de velocidade
-  if (!should_move_now(vehicle, clock)) {
-    return false;
-  }
+    // Valida restrições temporais de velocidade
+    if (!should_move_now(vehicle, clock)) {
+        return false;
+    }
 
-  // Valida restrições físicas de adjacência
-  if (!is_adjacent(map, vehicle, target)) {
-    return false;
-  }
+    // Valida restrições físicas de adjacência
+    if (!is_adjacent(map, vehicle, target)) {
+        return false;
+    }
 
-  // Valida regras de trânsito (ultrapassagem proibida)
-  if (is_overtaking(map, vehicle, target)) {
-    return false;
-  }
+    // Valida regras de trânsito (ultrapassagem proibida)
+    if (is_overtaking(map, vehicle, target)) {
+        return false;
+    }
 
-  const Coord current = vehicle->position;
+    const Coord current = vehicle->position;
 
-  if (map_transfer_occupant(map, current, target) == false) {
-    return false;
-  }
+    if (map_transfer_occupant(map, current, target) == false) {
+        return false;
+    }
 
-  vehicle->position = target;
-  return true;
+    vehicle->position = target;
+    return true;
 }
 
 /*
@@ -339,17 +311,18 @@ static bool update_position(Map *map, Vehicle *vehicle, const Coord target,
  *          direção válida.
  */
 Vehicle *vehicle_new(Map *map, const int id) {
-  // Aloca e inicializa as propriedades de um veículo.
-  // CRITÉRIO: Cada veículo possui identificador, posição, direção, velocidade,
-  // tipo, e rota.
+    // Aloca e inicializa as propriedades de um veículo.
+    // CRITÉRIO: Cada veículo possui identificador, posição, direção, velocidade, tipo, e rota.
 
-  Vehicle *vehicle = malloc(sizeof(Vehicle));
-  if (!vehicle) {
-    LOG("Error: failed to allocate memory for 'vehicle'");
-    return NULL;
-  }
+    // TODO: adicionar criação interna de IDs auto-incrementais
 
-  vehicle->id = id;
+    Vehicle *vehicle = malloc(sizeof(Vehicle));
+    if (!vehicle) {
+        LOG("Error: failed to allocate memory for 'vehicle'");
+        return NULL;
+    }
+
+    vehicle->id = id;
 
   /*
    * A sequência de condicoes else if a seguir garante a presença de pelo menos
@@ -358,38 +331,38 @@ Vehicle *vehicle_new(Map *map, const int id) {
    * especificos todos os carros terem a mesma velocidade.
    */
 
-  // TODO: Melhorar o fator aleatório
+    // TODO: Melhorar o fator aleatório
 
-  if (id == 0) {
-    vehicle->type = AMBULANCE;
-  } else if (id == 1) {
-    vehicle->type = CAR_FAST;
-  } else if (id == 2) {
-    vehicle->type = CAR_MEDIUM;
-  } else if (id == 3) {
-    vehicle->type = CAR_SLOW;
-  } else {
-    vehicle->type = (VehicleType)(rand() % 3 + 2);
-  }
+    if (id == 0) {
+        vehicle->type = AMBULANCE;
+    } else if (id == 1) {
+        vehicle->type = CAR_FAST;
+    } else if (id == 2) {
+        vehicle->type = CAR_MEDIUM;
+    } else if (id == 3) {
+        vehicle->type = CAR_SLOW;
+    } else {
+        vehicle->type = (VehicleType)(rand() % 3 + 2);
+    }
 
-  vehicle->position = map_reserve_spawn_point(map);
+    vehicle->position = map_reserve_spawn_point(map);
 
-  if (vehicle->position.x == NULL_COORD.x ||
-      vehicle->position.y == NULL_COORD.y) {
-    free(vehicle);
-    return NULL;
-  }
+    if (vehicle->position.x == NULL_COORD.x ||
+        vehicle->position.y == NULL_COORD.y) {
+        free(vehicle);
+        return NULL;
+    }
 
-  const TileType tile = map_get_tile_type(map, vehicle->position);
-  vehicle->direction = find_direction_from_tile(tile);
+    const TileType tile = map_get_tile_type(map, vehicle->position);
+    vehicle->direction = find_direction_from_tile(tile);
 
-  if (vehicle->direction == DIRECTION_NONE) {
-    LOG("Error: 'vehicle->direction' have not been properly defined.");
-    free(vehicle);
-    return NULL;
-  }
+    if (vehicle->direction == DIRECTION_NONE) {
+        LOG("Error: 'vehicle->direction' have not been properly defined.");
+        free(vehicle);
+        return NULL;
+    }
 
-  return vehicle;
+    return vehicle;
 }
 
 /**
@@ -397,9 +370,9 @@ Vehicle *vehicle_new(Map *map, const int id) {
  * @brief Implementação da liberação dos recursos do veículo.
  */
 void vehicle_destroy(Vehicle *vehicle) {
-  // Libera a memória alocada para o contexto do veículo.
-  LOG_IF(vehicle == NULL, "Warning: parameter 'vehicle' is NULL.");
-  free(vehicle);
+    // Libera a memória alocada para o contexto do veículo.
+    LOG_IF(vehicle == NULL, "Warning: parameter 'vehicle' is NULL.");
+    free(vehicle);
 }
 
 void *vehicle_update(void *vehicle) {
