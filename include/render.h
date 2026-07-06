@@ -17,6 +17,7 @@
 
 #include <stddef.h>
 
+#include "analyser.h"
 #include "clock.h"
 #include "map.h"
 #include "vehicle.h"
@@ -38,6 +39,7 @@ typedef struct Render Render;
  * @brief Argumentos passados para a thread do renderizador via @c pthread_create.
  */
 typedef struct {
+    Analyser *analyser;
     Render *render;         /**< Instância do renderizador. */
     Map *map;               /**< Mapa da simulação a ser renderizado. */
     Clock *clock;           /**< Relógio global, usado para sincronizar a
