@@ -1,12 +1,24 @@
 #ifndef URBAN_TRAFFIC_DEADLOCK_H
 #define URBAN_TRAFFIC_DEADLOCK_H
 
-#include <stdbool.h>
 
+#include <stdbool.h>
+#include "map.h"
 #include "vehicle.h"
 
-bool try_move_vehicle(Vehicle *vehicle,
-                      int next_x,
-                      int next_y);
+
+/**
+ * @brief Inicializa o módulo de análise de deadlock.
+ */
+void deadlock_init(const Map *map);
+
+
+/**
+ * @brief Valida se um movimento de veículo é seguro.
+ *
+ */
+bool deadlock_validate_move(Map *map, Coord from, Coord to);
+
 
 #endif
+#ifndef URBAN_TRAFFIC_DEADLOCK_H
