@@ -9,16 +9,15 @@
  * @date 2026-06-25
  */
 
-
-#include <stdlib.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <pthread.h>
+#include <stdlib.h>
 
-#include "vehicle.h"
 #include "clock.h"
 #include "debug.h"
 #include "map.h"
+#include "vehicle.h"
 
 /**
  * @internal
@@ -30,8 +29,6 @@ struct Vehicle {
     Direction direction; /**< Direção de movimento atual. */
     VehicleType type;    /**< Tipo do veículo (define velocidade e prioridade). */
 };
-
-// TODO: adicionar 'id' e 'type' como campos constantes
 
 
 /**
@@ -54,7 +51,6 @@ static Direction find_direction_from_tile(const TileType tile_type) {
         default:                return DIRECTION_NONE;
     }
 }
-
 
 /**
  * @internal
@@ -90,7 +86,6 @@ static Coord find_next_position(const Vehicle *vehicle) {
     return next;
 }
 
-
 /**
  * @internal
  * @brief Verifica se um veículo está autorizado a mover-se no tick atual com
@@ -123,7 +118,6 @@ static bool should_move_now(const Vehicle *vehicle, const Clock *clock) {
         default:            return false;
     }
 }
-
 
 /**
  * @internal
@@ -161,7 +155,6 @@ static bool is_adjacent(const Map *map, const Vehicle *vehicle, const Coord targ
     return diff_x + diff_y == 1;
 }
 
-
 /**
  * @internal
  * @brief Projeta a trajetória frontal do veículo e checa se há um obstáculo
@@ -195,7 +188,6 @@ static bool has_vehicle_ahead(Map *map, const Vehicle *vehicle) {
 
     return map_is_occupied(map, next_position);
 }
-
 
 /**
  * @internal
@@ -246,7 +238,6 @@ static bool is_overtaking(const Map *map, const Vehicle *vehicle, const Coord ta
 
     return false;
 }
-
 
 /**
  * @internal
@@ -300,7 +291,6 @@ static bool try_update_position(Map *map, Vehicle *vehicle,
     return true;
 }
 
-
 /*
  * ============================================================================
  * API Pública
@@ -335,11 +325,12 @@ Vehicle *vehicle_new(Map *map, const int id) {
 
     vehicle->id = id;
 
-    /*
-     * A sequência de condicoes else if a seguir garante a presença de pelo menos um carro com
-     * cada velocidade indicada no relógio global, pois se mantivéssemos aleatoriamente em todos os carros
-     * poderiam ocorrer sorteios especificos todos os carros terem a mesma velocidade.
-     */
+  /*
+   * A sequência de condicoes else if a seguir garante a presença de pelo menos
+   * um carro com cada velocidade indicada no relógio global, pois se
+   * mantivéssemos aleatoriamente em todos os carros poderiam ocorrer sorteios
+   * especificos todos os carros terem a mesma velocidade.
+   */
 
     // TODO: Melhorar o fator aleatório
 
@@ -374,7 +365,6 @@ Vehicle *vehicle_new(Map *map, const int id) {
 
     return vehicle;
 }
-
 
 /**
  * @internal
@@ -423,9 +413,33 @@ void *vehicle_update(void *vehicle_args) {
         clock_signal(clock, current_tick);
     }
 
-    return NULL;
+  return NULL;
 }
 
 Coord vehicle_get_priority_coord(void) {
-    // TODO
+  // TODO
+}
+
+Coord vehicle_get_position(const Vehicle *vehicle) {
+  if (vehicle == NULL) {
+    return NULL_COORD;
+  }
+
+  return vehicle->position;
+}
+
+VehicleType vehicle_get_type(const Vehicle *vehicle) {
+  if (vehicle == NULL) {
+    return NO_VEHICLE;
+  }
+
+  return vehicle->type;
+}
+
+Direction vehicle_get_direction(const Vehicle *vehicle) {
+  if (vehicle == NULL) {
+    return DIRECTION_NONE;
+  }
+
+  return vehicle->direction;
 }

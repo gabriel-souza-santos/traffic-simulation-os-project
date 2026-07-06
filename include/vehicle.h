@@ -18,7 +18,8 @@
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
 #define VEHICLE_COUNT 10 //valores permitidos: [10-20]
 
-/* Garante em tempo de compilação que a contagem de veículos respeite os limites do projeto */
+/* Garante em tempo de compilação que a contagem de veículos respeite os limites
+ * do projeto */
 #if VEHICLE_COUNT < 10 || VEHICLE_COUNT > 20
 #undef VEHICLE_COUNT
 #define VEHICLE_COUNT 10
@@ -140,12 +141,42 @@ void *vehicle_update(void *vehicle_args);
  */
 Coord vehicle_get_priority_coord(void);
 
-// TODO: Funções Getter para obter informações dos veículos de forma segura
-
+/**
+ * @brief Retorna a posição atual do veículo.
+ *
+ * Permite que outros módulos consultem a localização do veículo sem
+ * acessar diretamente sua estrutura interna, preservando o
+ * encapsulamento do módulo.
+ *
+ * @param vehicle Ponteiro para o veículo.
+ *
+ * @return Coordenada atual ocupada pelo veículo no mapa.
+ */
 Coord vehicle_get_position(const Vehicle *vehicle);
 
+/**
+ * @brief Retorna o tipo do veículo.
+ *
+ * Permite identificar se o veículo é uma ambulância ou um carro de
+ * determinada velocidade.
+ *
+ * @param vehicle Ponteiro para o veículo.
+ *
+ * @return Tipo do veículo.
+ */
 VehicleType vehicle_get_type(const Vehicle *vehicle);
 
+/**
+ * @brief Retorna a direção atual de deslocamento do veículo.
+ *
+ * A direção retornada representa o sentido em que o veículo está
+ * trafegando na malha viária e pode ser utilizada por outros módulos,
+ * como o controlador de semáforos, para tomar decisões de controle.
+ *
+ * @param vehicle Ponteiro para o veículo.
+ *
+ * @return Direção atual do veículo.
+ */
 Direction vehicle_get_direction(const Vehicle *vehicle);
 
-#endif //URBAN_TRAFFIC_VEHICLE_H
+#endif // URBAN_TRAFFIC_VEHICLE_H

@@ -20,10 +20,10 @@ struct Analyser {
     MovementRequest requests[VEHICLE_COUNT];
 
     pthread_mutex_t slot_mutex[VEHICLE_COUNT];
-    pthread_cond_t  slot_cond[VEHICLE_COUNT];
+    pthread_cond_t slot_cond[VEHICLE_COUNT];
 
     pthread_mutex_t analyser_mutex;
-    pthread_cond_t  analyser_cond;
+    pthread_cond_t analyser_cond;
 
     size_t pending_count;
     int active_request;
@@ -40,7 +40,7 @@ Analyser *analyser_new(void) {
         TRY(pthread_mutex_init(&analyser->slot_mutex[i], NULL));
         TRY(pthread_cond_init(&analyser->slot_cond[i], NULL));
 
-        analyser->requests[i] = (MovementRequest){ .status = REQUEST_EMPTY };
+        analyser->requests[i] = (MovementRequest){.status = REQUEST_EMPTY};
     }
 
     TRY(pthread_mutex_init(&analyser->analyser_mutex, NULL));
@@ -109,20 +109,88 @@ void analyser_request(Analyser *analyser, const int id, MovementRequest request)
     TRY(pthread_mutex_unlock(&analyser->slot_mutex[id]));
 }
 
+static bool analyser_validate_move(Map *map, Coord from, Coord to) {
+    if (!map)
+        return false;
+
+
+    if (!map_is_within_bounds(map, from) ||
+        !map_is_within_bounds(map, to))
+        return false;
+
+
+    if (map_is_blocked(map, to))
+        return false;
+
+
+    if (map_is_occupied(map, to))
+        return false;
+
+
+    return true;
+}
+
+
 void *analyser_update(void *analyser_args) {
-
-    AnalyserArgs *args = (AnalyserArgs *)analyser_args;
-
+    AnalyserArgs *args = (AnalyserArgs *) analyser_args;
     Analyser *analyser = args->analyser;
-    Clock *clock = args->clock;
     Map *map = args->map;
 
+    while (1) {
+        pthread_mutex_lock(&analyser->analyser_mutex);
 
-    /*
-     * Ao validar o pedido, chama a função:
-     * map_transfer_occupant(map, request.from, request.to);
-     * para atualizar o mapa
-     */
+        while (analyser->pending_count < VEHICLE_COUNT) {
+            pthread_cond_wait(
+                &analyser->analyser_cond,
+                &analyser->analyser_mutex
+            );
+        }
+
+        pthread_mutex_unlock(&analyser->analyser_mutex);
+
+        /* CONTROLE DE CONFLITO DE DESTINO*/
+        bool occupied_dest[VEHICLE_COUNT][VEHICLE_COUNT] = {0};
+
+        /* PROCESSAMENTO DO TICK */
+        for (int i = 0; i < VEHICLE_COUNT; i++) {
+            pthread_mutex_lock(&analyser->slot_mutex[i]);
+
+            MovementRequest *req = &analyser->requests[i];
+
+            if (req->status == REQUEST_PENDING) {
+                bool ok = analyser_validate_move(map, req->from, req->to);
+
+                /* evita múltiplos veículos no mesmo destino */
+                if (ok && !occupied_dest[req->to.x][req->to.y]) {
+                    occupied_dest[req->to.x][req->to.y] = true;
+
+                    map_transfer_occupant(map, req->from, req->to);
+                    req->status = REQUEST_APPROVED;
+                } else {
+                    req->status = REQUEST_DENIED;
+                }
+
+                pthread_cond_signal(&analyser->slot_cond[i]);
+            }
+
+            pthread_mutex_unlock(&analyser->slot_mutex[i]);
+        }
+
+        /* RESET DO TICK */
+        pthread_mutex_lock(&analyser->analyser_mutex);
+        analyser->pending_count = 0;
+        pthread_mutex_unlock(&analyser->analyser_mutex);
+    }
+
+    return NULL;
+}
+
+/*
+ * Ao validar o pedido, chama a função:
+ * map_transfer_occupant(map, request.from, request.to);
+ * para atualizar o mapa
+ */
+
 
 /*
  * ============================================================================
@@ -173,6 +241,4 @@ void *analyser_update(void *analyser_args) {
  * Qualquer decisão de implementação aqui pode ser alterada caso seja
  * necessário para garantir a ausência de deadlocks.
  *
- * ============================================================================
- */
-}
+ * ============================================================================ */
