@@ -34,6 +34,9 @@
  */
 typedef struct Clock Clock;
 
+typedef struct {
+    Clock *clock;
+} ClockArgs;
 
 /**
  * @brief Cria e inicializa uma nova instância do relógio.
@@ -65,12 +68,12 @@ void clock_destroy(Clock *clock);
  * de forma e emite um sinal (broadcast) para acordar todas as threads que estão
  * bloqueadas aguardando o próximo tick.
  *
- * @param clock Ponteiro para o relógio do sistema. Usa void* para seguir a
- * assinatura de `pthread_create`.
+ * @param clock_args Ponteiro para os argumentos do relógio (ClockArgs). Usa void*
+ * para seguir a assinatura de `pthread_create`.
  *
  * @return NULL, para respeitar a assinatura padrão exigida pela API Pthreads.
  */
-void *clock_update(void *clock);
+void *clock_update(void *clock_args);
 
 
 /**
