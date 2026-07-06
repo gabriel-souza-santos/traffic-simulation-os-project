@@ -11,8 +11,9 @@
 #ifndef URBAN_TRAFFIC_VEHICLE_H
 #define URBAN_TRAFFIC_VEHICLE_H
 
-#include "map.h"
 #include <stdint.h>
+#include "clock.h"
+#include "map.h"
 
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
 #define VEHICLE_COUNT 10 //valores permitidos: [10-20]
@@ -64,6 +65,28 @@ typedef enum {
 typedef struct Vehicle Vehicle;
 
 /**
+ * @brief Mapeia os argumentos passados para a thread do veículo.
+ *
+ * Deve ser passado via ponteiro:
+ * @code{.c}
+ * VehicleArgs args = {
+ *     .map = map,
+ *     .clock = clock,
+ *     .vehicle = vehicle
+ * };
+ *
+ * pthread_create(&thread, NULL, vehicle_update, &args);
+ * @endcode
+ *
+ * @note Faz-se necessário, pois @c pthread_create só aceita @c void* como argumentos.
+ */
+typedef struct {
+    Map *map;
+    Clock *clock;
+    Vehicle *vehicle;
+} VehicleArgs;
+
+/**
  * @brief Aloca e inicializa um novo veículo.
  *
  * @param map Mapa onde o veículo será inserido; usado para reservar um
@@ -86,11 +109,10 @@ void vehicle_destroy(Vehicle *vehicle);
 /**
  * @brief Rotina principal executada pela thread de cada veículo.
  *
- * @param vehicle Ponteiro genérico (void*) que deve ser feito o cast para
- * (Vehicle*).
+ * @param vehicle_args Ponteiro genérico (void*) que deve ser feito o cast para (VehicleArgs*).
  * @return NULL, respeitando a assinatura padrão da API Pthreads.
  */
-void *vehicle_update(void *vehicle);
+void *vehicle_update(void *vehicle_args);
 
 /**
  * @brief Retorna a coordenada de prioridade de passagem ativa na simulação.

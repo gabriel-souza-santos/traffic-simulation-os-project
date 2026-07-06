@@ -34,18 +34,25 @@ e prevenção de deadlocks.
     ├── 📄 render.c        # Atualização visual da tela e interface do terminal
     └── 📄 traffic_light.c # Sincronização dos tempos de abertura/fechamento das vias
     └── 📄 vehicle.c       # Funções para veículos deslocamento no mapa, criação e destruição
---
+
+```
 ## Decisões de implementação 
---
+
 ### Mapa
---
+
 ### Threads
---
+
 ### Mecanismos de sicronização
---
+
 ### Ausência de espera ocupada
---
+
 ### Prevenção de deadlocks
---
+
 ## Membros e responsabilidades
---
+
+| Nome | Responsabilidades |
+|------|-------------------|
+| Gabriel Souza Santos | Implementação do clock, definição de estrutura do projeto, renderização, debug e revisão do código. |
+| José Dhonatan Fernandes de Almeida | Criação do mapa, funções auxiliares de veículo, implementação do semáforo sem espera ocupada. |
+| Letícia Maria dos Santos Dias | Implementação dos veículos normais, issues e divisão de responsabilidades, relatório técnico e documentação. |
+| Sarah Mendes Teles | Implementação da ambulância, sistema de prioridade e mecanismos para prevenção de deadlocks. |
