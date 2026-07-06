@@ -39,6 +39,8 @@ typedef enum {
     CAR_SLOW,   /**< Carro lento. Executa o seu movimento a cada 4 ticks do relógio. */
 } VehicleType;
 
+#define VEHICLE_TYPE_COUNT 5
+
 /**
  * @brief Indica o sentido atual de movimento do veículo no mapa.
  * * Usado para calcular a próxima coordenada (X, Y) que o veículo tentará
@@ -51,6 +53,8 @@ typedef enum {
     DIRECTION_LEFT,  /**< Movimento para o Oeste (X decrescente na matriz). */
     DIRECTION_RIGHT, /**< Movimento para o Leste (X crescente na matriz). */
 } Direction;
+
+#define DIRECTION_COUNT 5
 
 /**
  * @brief Tipo opaco que representa um veículo e o seu contexto interno.

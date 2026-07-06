@@ -113,14 +113,18 @@ size_t clock_get_tick(Clock *clock) {
  * @note O uso de @c while (em vez de @c if) ao redor de @c pthread_cond_wait
  *       protege contra despertar repentino de uma thread.
  */
-void *clock_update(void *arg) {
+void *clock_update(void *clock_args) {
+    if (!clock_args) {
+        LOG("Error: parameter 'clock_args' is NULL.");
+        return NULL;
+    }
+    const ClockArgs *args = (ClockArgs *)clock_args;
+    Clock *clock = args->clock;
 
-    if (!arg) {
+    if (!clock) {
         LOG("Error: thread argument 'clock' is NULL.");
         return NULL;
     }
-
-    Clock *clock = (Clock *)arg;
 
     for (int i = 0; i < TICKS; i++) {
         TRY(pthread_mutex_lock(&clock->mutex));
