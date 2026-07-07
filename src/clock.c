@@ -10,7 +10,7 @@
 
 #include "clock.h"
 #include "debug.h"
-
+#include "analyser.h"
 
 /**
  * @internal
@@ -89,11 +89,11 @@ void clock_destroy(Clock *clock) {
  * @internal
  * @brief Implementação da leitura do tick atual.
  *
- * Protege a leitura de current_tick com o mesmo mutex usado por
- * clock_update na escrita, evitando leitura concorrente não sincronizada.
+ * Leitura direta, o valor do tick é constante durante o ciclo.
+ * O seu valor só é incrementado após todos as threads trabalhadoras
+ * terem terminado o seu processamento.
  */
 size_t clock_get_tick(Clock *clock) {
-
     if (!clock) {
         LOG("Error: parameter 'clock' is NULL.");
         return 0;
@@ -123,19 +123,33 @@ void *clock_update(void *clock_args) {
     }
 
     const ClockArgs *args = (ClockArgs *)clock_args;
+
+    if (!args->analyser) {
+        LOG("Error: thread argument 'args->analyser' is NULL.");
+        return NULL;
+    }
+
+    if (!args->clock) {
+        LOG("Error: thread argument 'args->clock' is NULL.");
+        return NULL;
+    }
+
     Clock *clock = args->clock;
+    Analyser *analyser = args->analyser;
 
     for (int i = 0; i < TICKS; i++) {
         TRY(pthread_mutex_lock(&clock->mutex));
+        {
+            while (clock->completed_count < clock->total_workers) {
+                TRY(pthread_cond_wait(&clock->cond_clock, &clock->mutex));
+            }
 
-        while (clock->completed_count < clock->total_workers) {
-            TRY(pthread_cond_wait(&clock->cond_clock, &clock->mutex));
+            analyser_swap_buffers(analyser);
+            clock->completed_count = 0;
+            clock->current_tick++;
+
+            TRY(pthread_cond_broadcast(&clock->cond_workers));
         }
-
-        clock->completed_count = 0;
-        clock->current_tick++;
-
-        TRY(pthread_cond_broadcast(&clock->cond_workers));
         TRY(pthread_mutex_unlock(&clock->mutex));
     }
 
@@ -159,21 +173,22 @@ void clock_signal(Clock *clock, const size_t tick) {
     }
 
     TRY(pthread_mutex_lock(&clock->mutex));
-    clock->completed_count++;
+    {
+        clock->completed_count++;
 
-    LOG_IF(clock->completed_count > clock->total_workers,
-        "Warning: 'clock->completed_count' have been corrupted\n."
-        "Max: %zu,\ncompleted_count: %zu.",
-        clock->total_workers, clock->completed_count);
+        LOG_IF(clock->completed_count > clock->total_workers,
+            "Warning: 'clock->completed_count' have been corrupted\n."
+            "Max: %zu,\ncompleted_count: %zu.",
+            clock->total_workers, clock->completed_count);
 
 
-    if (clock->completed_count == clock->total_workers) {
-        TRY(pthread_cond_signal(&clock->cond_clock));
+        if (clock->completed_count == clock->total_workers) {
+            TRY(pthread_cond_signal(&clock->cond_clock));
+        }
+
+        while (clock->current_tick == tick) {
+            TRY(pthread_cond_wait(&clock->cond_workers, &clock->mutex));
+        }
     }
-
-    while (clock->current_tick == tick) {
-        TRY(pthread_cond_wait(&clock->cond_workers, &clock->mutex));
-    }
-
     TRY(pthread_mutex_unlock(&clock->mutex));
 }

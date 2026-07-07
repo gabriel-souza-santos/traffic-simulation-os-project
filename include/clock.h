@@ -14,6 +14,8 @@
 
 #include <stddef.h>
 
+#include "analyser.h"
+
 /**
  * @brief Número total de ticks da simulação.
  *
@@ -38,6 +40,7 @@ typedef struct Clock Clock;
  * @brief Argumentos passados para a função que executa a thread do relógio.
  */
 typedef struct {
+    Analyser *analyser;
     Clock *clock;
 } ClockArgs;
 
@@ -112,3 +115,4 @@ void clock_signal(Clock *clock, size_t tick);
 size_t clock_get_tick(Clock *clock);
 
 #endif //URBAN_TRAFFIC_CLOCK_H
+
