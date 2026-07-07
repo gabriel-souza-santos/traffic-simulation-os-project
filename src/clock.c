@@ -99,11 +99,7 @@ size_t clock_get_tick(Clock *clock) {
         return 0;
     }
 
-    pthread_mutex_lock(&clock->mutex);
-    const size_t current_tick = clock->current_tick;
-    pthread_mutex_unlock(&clock->mutex);
-
-    return current_tick;
+    return clock->current_tick;
 }
 
 
