@@ -125,12 +125,12 @@ void *clock_update(void *clock_args) {
     const ClockArgs *args = (ClockArgs *)clock_args;
 
     if (!args->analyser) {
-        LOG("Error: thread argument 'args->analyser' is NULL.");
+        LOG("Error: thread argument 'analyser' is NULL.");
         return NULL;
     }
 
     if (!args->clock) {
-        LOG("Error: thread argument 'args->clock' is NULL.");
+        LOG("Error: thread argument 'clock' is NULL.");
         return NULL;
     }
 
