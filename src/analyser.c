@@ -244,6 +244,16 @@ void *analyser_update(void *analyser_args) {
     return NULL;
 }
 
+MovementRequest *analyser_get_previous_requests(Analyser *analyser) {
+    if (!analyser) {
+        LOG("Error: parameter 'analyser' is NULL.");
+        return NULL;
+    }
+
+    const int inactive = 1 - analyser->active_request;
+    return analyser->requests[inactive];
+}
+
 /*
  * Ao validar o pedido, chama a função:
  * map_transfer_occupant(map, request.from, request.to);
