@@ -68,6 +68,16 @@ typedef enum {
  */
 typedef struct Vehicle Vehicle;
 
+
+/**
+ * Compartilhado entre todos os veículos
+ */
+typedef struct {
+    Analyser *analyser;
+    Clock *clock;
+    Map *map;
+} SharedVehicleArgs;
+
 /**
  * @brief Mapeia os argumentos passados para a thread do veículo.
  *
@@ -85,8 +95,7 @@ typedef struct Vehicle Vehicle;
  * @note Faz-se necessário, pois @c pthread_create só aceita @c void* como argumentos.
  */
 typedef struct {
-    Map *map;
-    Clock *clock;
+    SharedVehicleArgs *shared;
     Vehicle *vehicle;
 } VehicleArgs;
 
