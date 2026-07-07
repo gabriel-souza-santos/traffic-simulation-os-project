@@ -47,7 +47,16 @@ void debug_log(
     const char *fmt,
     ...);
 
+void debug_log_init(const char *file_name);
+void debug_log_close(void);
+
 #if DEBUG
+
+#define DEBUG_INIT(file) \
+    (debug_log_init(file))
+
+#define DEBUG_CLOSE \
+    (debug_log_close())
 
 /**
  * @def TRY(expr)
@@ -150,6 +159,9 @@ void debug_log(
  * As macros são redefinidas para minimizar o overhead de processamento.
  */
 
+
+#define DEBUG_INIT(file)    do { } while (0)
+#define DEBUG_CLOSE         do { } while (0)
 #define TRY(expr)           if (expr) exit(EXIT_FAILURE);
 #define LOG(...)            do { } while (0)
 #define LOG_IF(cond, ...)   do { } while (0)
