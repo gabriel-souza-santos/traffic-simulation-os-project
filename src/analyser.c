@@ -10,14 +10,19 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 
+#include "analyser.h"
+#include "clock.h"
+#include "debug.h"
+#include "map.h"
 #include "vehicle.h"
 #include "analyser.h"
 #include "debug.h"
 
 struct Analyser {
-    MovementRequest requests[VEHICLE_COUNT];
+    MovementRequest requests[2][VEHICLE_COUNT];
 
     pthread_mutex_t slot_mutex[VEHICLE_COUNT];
     pthread_cond_t slot_cond[VEHICLE_COUNT];
@@ -40,7 +45,8 @@ Analyser *analyser_new(void) {
         TRY(pthread_mutex_init(&analyser->slot_mutex[i], NULL));
         TRY(pthread_cond_init(&analyser->slot_cond[i], NULL));
 
-        analyser->requests[i] = (MovementRequest){.status = REQUEST_EMPTY};
+        analyser->requests[0][i] = (MovementRequest){.status = REQUEST_EMPTY};
+        analyser->requests[1][i] = (MovementRequest){.status = REQUEST_EMPTY};
     }
 
     TRY(pthread_mutex_init(&analyser->analyser_mutex, NULL));
@@ -81,108 +87,171 @@ void analyser_request(Analyser *analyser, const int id, MovementRequest request)
         return;
     }
 
-
-    // Poderá ser mudado a depender da decisão de prevenção do deadlock
+    // Obtem o slot ativo (valor só é alterado ao final do tick, após todos term acabdo o processamento)
+    const int active = analyser->active_request;
 
     // Registra a requisição no slot
     TRY(pthread_mutex_lock(&analyser->slot_mutex[id]));
-    request.status = REQUEST_PENDING;
-    analyser->requests[id] = request;
+    {
+        request.status = REQUEST_PENDING;
+        analyser->requests[active][id] = request;
+    }
     TRY(pthread_mutex_unlock(&analyser->slot_mutex[id]));
 
     // Incrementa contador e acorda o analisador se todos submeteram
     TRY(pthread_mutex_lock(&analyser->analyser_mutex));
-    analyser->pending_count++;
-    if (analyser->pending_count == VEHICLE_COUNT) {
-        TRY(pthread_cond_signal(&analyser->analyser_cond));
+    {
+        analyser->pending_count++;
+        if (analyser->pending_count == VEHICLE_COUNT) {
+            TRY(pthread_cond_signal(&analyser->analyser_cond));
+        }
     }
     TRY(pthread_mutex_unlock(&analyser->analyser_mutex));
 
     // Readquire slot_mutex para dormir
     TRY(pthread_mutex_lock(&analyser->slot_mutex[id]));
-    while (analyser->requests[id].status == REQUEST_PENDING) {
-        TRY(pthread_cond_wait(
-            &analyser->slot_cond[id],
-            &analyser->slot_mutex[id]
-        ));
+    {
+        while (analyser->requests[active][id].status == REQUEST_PENDING) {
+            TRY(pthread_cond_wait(
+                &analyser->slot_cond[id],
+                &analyser->slot_mutex[id]
+            ));
+        }
     }
     TRY(pthread_mutex_unlock(&analyser->slot_mutex[id]));
 }
 
-static bool analyser_validate_move(Map *map, Coord from, Coord to) {
-    if (!map)
-        return false;
 
+void analyser_swap_buffers(Analyser *analyser) {
+    if (!analyser) {
+        LOG("Error: parameter 'analyser' is NULL.");
+        return;
+    }
 
-    if (!map_is_within_bounds(map, from) ||
-        !map_is_within_bounds(map, to))
-        return false;
+    TRY(pthread_mutex_lock(&analyser->analyser_mutex));
+    {
+        analyser->active_request = analyser->active_request? 0 : 1;
 
-
-    if (map_is_blocked(map, to))
-        return false;
-
-
-    if (map_is_occupied(map, to))
-        return false;
-
-
-    return true;
+        for (int i = 0; i < VEHICLE_COUNT; i++) {
+            analyser->requests[analyser->active_request][i].status = REQUEST_EMPTY;
+        }
+    }
+    TRY(pthread_mutex_unlock(&analyser->analyser_mutex));
 }
 
 
+
 void *analyser_update(void *analyser_args) {
-    AnalyserArgs *args = (AnalyserArgs *) analyser_args;
+    if (!analyser_args) {
+        LOG("Error: parameter 'analyser_args' is NULL.");
+        return NULL;
+    }
+    const AnalyserArgs *args = (AnalyserArgs *) analyser_args;
+
+    if (!args->analyser) {
+        LOG("Error: thread argument 'analyser' is NULL.");
+        return NULL;
+    }
+
+    if (!args->clock) {
+        LOG("Error: thread argument 'clock' is NULL.");
+        return NULL;
+    }
+
+    if (!args->map) {
+        LOG("Error: thread argument 'map' is NULL.");
+        return NULL;
+    }
+
     Analyser *analyser = args->analyser;
     Map *map = args->map;
+    Clock *clock = args->clock;
 
-    while (1) {
-        pthread_mutex_lock(&analyser->analyser_mutex);
+    const size_t map_width = map_get_width(map);
+    const size_t map_height = map_get_height(map);
 
-        while (analyser->pending_count < VEHICLE_COUNT) {
-            pthread_cond_wait(
-                &analyser->analyser_cond,
-                &analyser->analyser_mutex
-            );
+    /*
+     * Controle de conflito de destino (criado via VLA).
+     * Nota: As dimensões do mapa são fixadas para um limite de 255 x 255,
+     * e operando com valores bem menores (para garantir a visualização no
+     * terminal) tornado improvável um possível stack overflow.
+     */
+    bool destinations[map_width][map_height];
+
+    while (true) {
+        // Faz reset das requisições (sizeof é avaliado em runtime)
+        memset(destinations, false, sizeof(destinations));
+
+        int active;
+        TRY(pthread_mutex_lock(&analyser->analyser_mutex));
+        {
+            while (analyser->pending_count < VEHICLE_COUNT) {
+                TRY(pthread_cond_wait(
+                    &analyser->analyser_cond,
+                    &analyser->analyser_mutex
+                ));
+            }
+            analyser->pending_count = 0;
+            active = analyser->active_request;
         }
+        TRY(pthread_mutex_unlock(&analyser->analyser_mutex));
 
-        pthread_mutex_unlock(&analyser->analyser_mutex);
-
-        /* CONTROLE DE CONFLITO DE DESTINO*/
-        bool occupied_dest[VEHICLE_COUNT][VEHICLE_COUNT] = {0};
-
-        /* PROCESSAMENTO DO TICK */
+        // Análise das requisições
         for (int i = 0; i < VEHICLE_COUNT; i++) {
-            pthread_mutex_lock(&analyser->slot_mutex[i]);
+            TRY(pthread_mutex_lock(&analyser->slot_mutex[i]));
+            {
+                MovementRequest *request = &analyser->requests[active][i];
 
-            MovementRequest *req = &analyser->requests[i];
-
-            if (req->status == REQUEST_PENDING) {
-                bool ok = analyser_validate_move(map, req->from, req->to);
-
-                /* evita múltiplos veículos no mesmo destino */
-                if (ok && !occupied_dest[req->to.x][req->to.y]) {
-                    occupied_dest[req->to.x][req->to.y] = true;
-
-                    map_transfer_occupant(map, req->from, req->to);
-                    req->status = REQUEST_APPROVED;
-                } else {
-                    req->status = REQUEST_DENIED;
+                // Se o slot não está pendente, destrava e pula o veículo
+                if (request->status != REQUEST_PENDING) {
+                    TRY(pthread_mutex_unlock(&analyser->slot_mutex[i]));
+                    continue;
                 }
 
-                pthread_cond_signal(&analyser->slot_cond[i]);
-            }
+                const bool is_idle = request->from.x == request->to.x &&
+                                     request->from.y == request->to.y;
 
-            pthread_mutex_unlock(&analyser->slot_mutex[i]);
+                const bool is_occupied = destinations[request->to.x][request->to.y];
+
+                if (is_idle) {
+                    destinations[request->to.x][request->to.y] = true;
+                    request->status = REQUEST_APPROVED;
+                }
+                else if (is_occupied) {
+                    request->status = REQUEST_DENIED;
+                }
+                else if (map_transfer_occupant(map, request->from, request->to)) {
+                    // Mapa aceitou a transferência física do veículo
+                    destinations[request->to.x][request->to.y] = true;
+                    request->status = REQUEST_APPROVED;
+                }
+                else {
+                    // Mapa recusou
+                    request->status = REQUEST_DENIED;
+                }
+
+                // Acorda o veículo correspondente e libera o seu slot mutex
+                TRY(pthread_cond_signal(&analyser->slot_cond[i]));
+            }
+            TRY(pthread_mutex_unlock(&analyser->slot_mutex[i]));
         }
 
-        /* RESET DO TICK */
-        pthread_mutex_lock(&analyser->analyser_mutex);
-        analyser->pending_count = 0;
-        pthread_mutex_unlock(&analyser->analyser_mutex);
+        // Dorme e espera o próximo tick
+        const size_t tick = clock_get_tick(clock);
+        clock_signal(clock, tick);
     }
 
     return NULL;
+}
+
+MovementRequest *analyser_get_previous_requests(Analyser *analyser) {
+    if (!analyser) {
+        LOG("Error: parameter 'analyser' is NULL.");
+        return NULL;
+    }
+
+    const int inactive = 1 - analyser->active_request;
+    return analyser->requests[inactive];
 }
 
 /*

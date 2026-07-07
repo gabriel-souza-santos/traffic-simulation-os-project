@@ -8,7 +8,9 @@
 #define URBAN_TRAFFIC_ANALYSER_H
 
 #include "map.h"
-#include "clock.h"
+
+// Forward declaration
+typedef struct Clock Clock;
 
 typedef enum {
     REQUEST_EMPTY,
@@ -31,15 +33,13 @@ typedef struct {
     Map *map;
 }AnalyserArgs;
 
-Analyser *analyser_new();
+Analyser *analyser_new(void);
 
 void analyser_destroy(Analyser *analyser);
 
 void *analyser_update(void *analyser_args);
 
 void analyser_request(Analyser *analyser, int id, MovementRequest request);
-
-RequestStatus analyser_get_status(Analyser *analyser, int id);
 
 MovementRequest *analyser_get_previous_requests(Analyser *analyser);
 

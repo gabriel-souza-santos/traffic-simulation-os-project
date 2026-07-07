@@ -4,7 +4,7 @@
  *
  * Este módulo define a estrutura e as operações do relógio que coordena
  * a passagem do tempo na simulação em "ticks". Ele é responsável por
- * garantir a sincronização entre a thread do tempo e as threads dos veículos,
+ * garantir a sincronização entre a thread do tempo, as threads dos veículos e auxiliares,
  * evitando espera ocupada (busy waiting) através de mecanismos de concorrência.
  *
  * @date 2026-06-11
@@ -13,6 +13,8 @@
 #define URBAN_TRAFFIC_CLOCK_H
 
 #include <stddef.h>
+
+#include "analyser.h"
 
 /**
  * @brief Número total de ticks da simulação.
@@ -25,7 +27,7 @@
 
 
 /**
- * @brief Tipo opaco que representa o relógio global e seus mecanismos de sincronização.
+ * @brief Tipo opaco que representa o relógio global e os seus mecanismos de sincronização.
  *
  * Deve ser instanciado sempre por meio de um ponteiro:
  * @code
@@ -34,25 +36,32 @@
  */
 typedef struct Clock Clock;
 
+/**
+ * @brief Argumentos passados para a função que executa a thread do relógio.
+ */
 typedef struct {
+    Analyser *analyser;
     Clock *clock;
 } ClockArgs;
 
 /**
  * @brief Cria e inicializa uma nova instância do relógio.
  *
- * Aloca dinamicamente a estrutura do relógio e inicializa seus recursos
+ * Aloca dinamicamente a estrutura do relógio e inicializa os seus recursos
  * internos de sincronização (mutexes e variáveis de condição), definindo
  * o tick inicial como zero.
  *
+ * @param total_workers Número de threads trabalhadoras que o relógio tem que esperar.
+ *
  * @return Um ponteiro para a estrutura recém-criada.
  */
-Clock *clock_new(void);
+Clock *clock_new(size_t total_workers);
 
 
 /**
  * @brief Limpa os recursos alocados para o relógio.
- * * Destrói os mutexes e variáveis de condição internos de forma segura
+ *
+ * Destrói os mutexes e variáveis de condição internos de forma segura
  * e libera a memória alocada para a estrutura do relógio. Deve ser
  * chamada ao final da simulação para evitar vazamento de memória.
  * * @param clock Ponteiro para o relógio que será destruído.
@@ -68,8 +77,7 @@ void clock_destroy(Clock *clock);
  * de forma e emite um sinal (broadcast) para acordar todas as threads que estão
  * bloqueadas aguardando o próximo tick.
  *
- * @param clock_args Ponteiro para os argumentos do relógio (ClockArgs). Usa void*
- * para seguir a assinatura de `pthread_create`.
+ * @param clock_args Ponteiro genérico (void*) que deve ser feito o cast para (ClockArgs*).
  *
  * @return NULL, para respeitar a assinatura padrão exigida pela API Pthreads.
  */
@@ -79,7 +87,7 @@ void *clock_update(void *clock_args);
 /**
  * @brief Sinaliza ao relógio a conclusão do trabalho no tick atual e aguarda o próximo.
  *
- * Chamada pelas threads dos veículos/semáforos. Esta função bloqueia a thread
+ * Chamada pelas threads trabalhadoras. Esta função bloqueia a thread
  * chamadora (sem consumir CPU) até que o `clock_update` avance o tempo para um
  * tick maior que o tick informado.
  *
@@ -87,7 +95,7 @@ void *clock_update(void *clock_args);
  * @code{.c}
  * Clock *clock = clock_new();
  *
- * // ... dentro da thread do veículo ...
+ * // ... dentro da thread  ...
  * clock_signal(clock, clock_get_tick(clock)); // Dorme até o tick mudar
  * @endcode
  *
@@ -107,3 +115,4 @@ void clock_signal(Clock *clock, size_t tick);
 size_t clock_get_tick(Clock *clock);
 
 #endif //URBAN_TRAFFIC_CLOCK_H
+
