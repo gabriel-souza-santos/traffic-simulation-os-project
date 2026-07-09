@@ -239,29 +239,7 @@ static bool is_overtaking(const Map *map, const Vehicle *vehicle, const Coord ta
     return false;
 }
 
-/**
- * @internal
- * @brief Orquestra a tentativa de deslocamento de um veículo no mapa.
- *
- * Valida, em sequência: permissão de movimento no tick atual (velocidade),
- * adjacência do destino, e regras de ultrapassagem. Se todas as validações
- * passarem, delega a transferência atômica de ocupação para
- * map_transfer_occupant, que internamente garante exclusão mútua via o
- * mutex global do mapa.
- *
- * @note A prevenção de deadlock neste módulo decorre de map_transfer_occupant
- *       usar um único mutex global (sem aquisição de múltiplos locks), não de
- *       ordenação de locks por endereço de memória.
- *
- * @param map Mapa onde o veículo está inserido.
- * @param vehicle Veículo que tentará se mover.
- * @param target Coordenada de destino pretendida.
- * @param clock Relógio global, usado para validar a velocidade do veículo.
- * @return true Se o movimento foi validado e executado com sucesso.
- * @return false Se qualquer validação falhar ou a célula destino estiver indisponível.
- */
-static bool try_update_position(Map *map, Vehicle *vehicle,
-    const Coord target, const Clock *clock) {
+
 
     if (vehicle == NULL || clock == NULL)
         return false;
