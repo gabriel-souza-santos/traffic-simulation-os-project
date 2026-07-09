@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "clock.h"
 #include "debug.h"
@@ -137,7 +138,7 @@ void *clock_update(void *clock_args) {
     Clock *clock = args->clock;
     Analyser *analyser = args->analyser;
 
-    for (int i = 0; i < TICKS; i++) {
+    for (int t = 0; t < TICKS; t++) {
         TRY(pthread_mutex_lock(&clock->mutex));
         {
             while (clock->completed_count < clock->total_workers) {
@@ -147,6 +148,12 @@ void *clock_update(void *clock_args) {
             analyser_swap_buffers(analyser);
             clock->completed_count = 0;
             clock->current_tick++;
+
+            struct timespec sleep_time = {
+                .tv_sec = 0,
+                .tv_nsec = 500000000L, // (0.5 s)
+            };
+            nanosleep(&sleep_time, NULL);
 
             TRY(pthread_cond_broadcast(&clock->cond_workers));
         }

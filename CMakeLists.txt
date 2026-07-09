@@ -12,6 +12,7 @@ file(GLOB SOURCE_FILES CONFIGURE_DEPENDS "src/*.c")
 add_executable(urban_traffic ${SOURCE_FILES})
 
 target_include_directories(urban_traffic PRIVATE include)
+target_compile_definitions(urban_traffic PRIVATE _POSIX_C_SOURCE=200809L)
 
 find_package(Threads REQUIRED)
 target_link_libraries(urban_traffic PRIVATE Threads::Threads)

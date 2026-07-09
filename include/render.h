@@ -88,11 +88,11 @@ void render_destroy(Render *render);
  * @note Cells sem asset carregado são renderizadas como blocos de espaços
  *       em branco com as dimensões configuradas em @c render_new.
  *
- * @param args Ponteiro para @c RenderArgs, passado como @c void* pela
+ * @param render_args Ponteiro para @c RenderArgs, passado como @c void* pela
  *             API Pthreads.
  * @return NULL, respeitando a assinatura padrão exigida pela API Pthreads.
  */
-void *render_update(void *args);
+void *render_update(void *render_args);
 
 /**
  * @brief Carrega um asset de célula do mapa a partir de um arquivo de texto.

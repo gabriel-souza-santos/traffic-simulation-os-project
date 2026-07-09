@@ -18,8 +18,6 @@
 #include "debug.h"
 #include "map.h"
 #include "vehicle.h"
-#include "analyser.h"
-#include "debug.h"
 
 struct Analyser {
     MovementRequest requests[2][VEHICLE_COUNT];
@@ -178,7 +176,7 @@ void *analyser_update(void *analyser_args) {
      */
     bool destinations[map_width][map_height];
 
-    while (true) {
+    for (int t = 0; t < TICKS; t++) {
         // Faz reset das requisições (sizeof é avaliado em runtime)
         memset(destinations, false, sizeof(destinations));
 
@@ -242,6 +240,29 @@ void *analyser_update(void *analyser_args) {
     }
 
     return NULL;
+}
+
+RequestStatus analyser_get_status(Analyser *analyser, int id) {
+    if (!analyser) {
+        LOG("Error: parameter 'analyser' is NULL.");
+        return REQUEST_EMPTY;
+    }
+
+    if (id < 0 || id >= VEHICLE_COUNT) {
+        LOG("Error: invalid id: %d. Must be between 0 and %d.",
+            id, VEHICLE_COUNT - 1);
+        return REQUEST_EMPTY;
+    }
+
+    const int active = analyser->active_request;
+    RequestStatus status;
+    TRY(pthread_mutex_lock(&analyser->slot_mutex[id]));
+    {
+        status = analyser->requests[active][id].status;
+    }
+    TRY(pthread_mutex_unlock(&analyser->slot_mutex[id]));
+
+    return status;
 }
 
 MovementRequest *analyser_get_previous_requests(Analyser *analyser) {

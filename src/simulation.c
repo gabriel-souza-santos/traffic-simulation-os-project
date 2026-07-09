@@ -14,8 +14,8 @@
 #include "clock.h"
 #include "debug.h"
 
-#define TILE_WIDTH      1
-#define TILE_HEIGHT     1
+#define TILE_WIDTH      15
+#define TILE_HEIGHT     4
 
 #define MAP_PATH        "res/map.txt"
 #define AMBULANCE_PATH  "res/ambulance.txt"
@@ -23,7 +23,7 @@
 #define CAR_SLOW_PATH   "res/car-slow.txt"
 
 #define TILE_ROAD_PATH    "res/tile-road.txt"
-#define TILE_BLOCKED_PATH "res/tile-block.txt"
+#define TILE_BLOCKED_PATH "res/tile-blocked.txt"
 
 struct Simulation {
     Map      *map;
@@ -39,9 +39,12 @@ struct Simulation {
 };
 
 Simulation *simulation_new(void) {
+    DEBUG_INIT("out/debug.log");
 
-    Clock *clock = clock_new();
+    const size_t total_workers = VEHICLE_COUNT + 2; /* analyser, render */
+
     Analyser *analyser = analyser_new();
+    Clock *clock = clock_new(total_workers);
     Map *map = map_new(MAP_PATH);
     Render *render = render_new(map, TILE_WIDTH, TILE_HEIGHT);
 
@@ -78,10 +81,18 @@ Simulation *simulation_new(void) {
 }
 
 void simulation_run(Simulation *simulation) {
+    system("clear");
+
+    SharedVehicleArgs shared = {
+        .analyser = simulation->analyser,
+        .clock = simulation->clock,
+        .map = simulation->map,
+    };
+
     VehicleArgs vehicle_args[VEHICLE_COUNT];
+
     for (int i = 0; i < VEHICLE_COUNT; i++) {
-        vehicle_args[i].map = simulation->map;
-        vehicle_args[i].clock = simulation->clock;
+        vehicle_args[i].shared = &shared;
         vehicle_args[i].vehicle = simulation->vehicles[i];
     }
 
@@ -102,6 +113,7 @@ void simulation_run(Simulation *simulation) {
 
     ClockArgs clock_args = {
         .clock = simulation->clock,
+        .analyser = simulation->analyser,
     };
 
     TRY(pthread_create(&simulation->thread_clock, NULL, clock_update, &clock_args));
@@ -120,6 +132,7 @@ void simulation_run(Simulation *simulation) {
     for (int i = 0; i < VEHICLE_COUNT; i++) {
         TRY(pthread_join(simulation->thread_vehicles[i], NULL));
     }
+
 }
 
 void simulation_destroy(Simulation *simulation) {
@@ -135,4 +148,5 @@ void simulation_destroy(Simulation *simulation) {
     }
 
     free(simulation);
+    DEBUG_CLOSE;
 }

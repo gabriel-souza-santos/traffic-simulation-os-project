@@ -266,26 +266,7 @@ static bool try_update_position(Map *map, Vehicle *vehicle,
     if (vehicle == NULL || clock == NULL)
         return false;
 
-    // Valida restrições temporais de velocidade
-    if (!should_move_now(vehicle, clock)) {
-        return false;
-    }
 
-    // Valida restrições físicas de adjacência
-    if (!is_adjacent(map, vehicle, target)) {
-        return false;
-    }
-
-    // Valida regras de trânsito (ultrapassagem proibida)
-    if (is_overtaking(map, vehicle, target)) {
-        return false;
-    }
-
-    const Coord current = vehicle->position;
-
-    if (map_transfer_occupant(map, current, target) == false) {
-        return false;
-    }
 
     vehicle->position = target;
     return true;
@@ -372,48 +353,104 @@ Vehicle *vehicle_new(Map *map, const int id) {
  */
 void vehicle_destroy(Vehicle *vehicle) {
     // Libera a memória alocada para o contexto do veículo.
-    LOG_IF(vehicle == NULL, "Warning: parameter 'vehicle' is NULL.");
+    LOG_IF(vehicle == NULL, "Warning: parameter 'vehicle' is NULL on destroy.");
     free(vehicle);
 }
 
 
 void *vehicle_update(void *vehicle_args) {
-    // Rotina principal executada por cada thread de veículo.
-    // CRITÉRIOS: Respeitar direção da via, não atravessar paredes (BLOCKED) e não sair do mapa.
-    // Deve chamar clock_signal ao finalizar
+    if (!vehicle_args) {
+        LOG("Error: parameter 'vehicle' is NULL.");
+        return NULL;
+    }
 
-    VehicleArgs *args = (VehicleArgs *)vehicle_args;
+    const VehicleArgs *args = (VehicleArgs *)vehicle_args;
 
-    Clock *clock = args->clock;
-    Map *map = args->map;
+    if (!args->shared) {
+        LOG("Error: thread argument 'shared' is NULL");
+        return NULL;
+    }
+
+    if (!args->shared->analyser) {
+        LOG("Error: thread argument 'shared->analyser' is NULL");
+        return NULL;
+    }
+
+    if (!args->shared->clock) {
+        LOG("Error: thread argument 'shared->clock' is NULL");
+        return NULL;
+    }
+
+    if (!args->shared->map) {
+        LOG("Error: thread argument 'shared->map' is NULL");
+        return NULL;
+    }
+
+    Analyser *analyser = args->shared->analyser;
+    Clock *clock = args->shared->clock;
+    Map *map = args->shared->map;
+
     Vehicle *vehicle = args->vehicle;
 
-    // TODO: Atualmente usa o número de TICKS pré fixado, será mudado em breve
-    for (int i = 0; i < TICKS; ++i) {
-        const Coord target = find_next_position(vehicle);
+    const int id = vehicle->id;
 
-        // TODO: Notificar caso 'target' esteja fora do mapa
+    for (int t = 0; t < TICKS; t++) {
+        const size_t current_tick = clock_get_tick(clock);
 
-        // Se a sua posição foi atualizada no mapa alteramos a sua direção
-        if (try_update_position(map, vehicle, target, clock) == true) {
+        // Coordenada atual (origem)
+        const Coord current_position = vehicle->position;
+        Coord target_position = current_position;
+
+        // Verifica se o veículo DEVE e PODE tentar se mover neste tick
+        if (should_move_now(vehicle, clock)) {
+            const Coord intended_target = find_next_position(vehicle);
+
+            // Validações locais (Física e Fronteiras)
+            if (!map_is_within_bounds(map, intended_target)) {
+                LOG("Warning: vehicle(%d) tried to go out of the map bounds.", id);
+            }
+            else if (!is_adjacent(map, vehicle, intended_target)) {
+                LOG("Warning: vehicle(%d) tried an illegal teleport (not adjacent).", id);
+            }
+            else if (is_overtaking(map, vehicle, intended_target)) {
+                LOG("Info: vehicle(%d) detected forbidden overtaking scheme.", id);
+            }
+            else {
+                target_position = intended_target;
+            }
+        }
+
+        // Monta a requisição e envia ao Analisador
+        const MovementRequest request = {
+            .from = current_position,
+            .to = target_position,
+            .status = REQUEST_PENDING,
+        };
+
+        // Bloqueia a thread do veículo até que o Analisador decida por todos
+        analyser_request(analyser, id, request);
+        const RequestStatus verdict = analyser_get_status(analyser, id);
+
+        if (verdict == REQUEST_APPROVED && (current_position.x != target_position.x || current_position.y != target_position.y)) {
+            vehicle->position = target_position;
+
+            // Atualiza a direção com base no novo tile
             const TileType target_tile = map_get_tile_type(map, vehicle->position);
             const Direction new_direction = find_direction_from_tile(target_tile);
 
             if (new_direction != DIRECTION_NONE) {
                 vehicle->direction = new_direction;
             }
-
-            // TODO: notificar se a nova direção é DIRECTION_NONE
+            // else {
+            //     LOG("Warning: vehicle(%d) does not have a defined direction at x:%d, y:%d.",
+            //         id, vehicle->position.x, vehicle->position.y);
+            // }
         }
 
-        // TODO: Usar em um tipo mais adequado que 'size_t' para o clock
-
-        // Dorme até o clock atualizar o tick
-        const size_t current_tick = clock_get_tick(clock);
         clock_signal(clock, current_tick);
     }
 
-  return NULL;
+    return NULL;
 }
 
 Coord vehicle_get_priority_coord(void) {
