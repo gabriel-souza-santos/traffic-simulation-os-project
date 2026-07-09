@@ -20,6 +20,17 @@
 /** @{ */
 
 /**
+ * @brief Tipo opaco que representa o semáforo global e os seus mecanismos
+ * internos.
+ *
+ * Deve ser sempre usado por meio de um ponteiro:
+ * @code{.c}
+ * TrafficLight *traffic_light;
+ * @endcode
+ */
+typedef struct TrafficLight TrafficLight;
+
+/**
  * @brief Associa uma célula de espera (TILE_WAIT) à direção de fluxo que
  *        ela representa dentro de uma interseção.
  *
@@ -28,8 +39,8 @@
  * controla, permitindo que o semáforo abra ou feche eixos independentemente.
  */
 typedef struct {
-    Coord cell; /**< Coordenada da célula TILE_WAIT no mapa. */
-    Direction direction; /**< Direção do fluxo que aguarda nesta célula. */
+    Coord position;         /**< Coordenada da célula TILE_WAIT no mapa. */
+    Direction direction;    /**< Direção do fluxo que aguarda nesta célula. */
 } WaitPoint;
 
 /**
@@ -48,9 +59,6 @@ typedef struct {
 /**
  * @brief Argumentos passados para a thread do semáforo via pthread_create.
  */
-typedef struct TrafficLight
-TrafficLight; // Fix: No struct abaixo, estava dando erro quando o
-// compilador analisava ela.
 typedef struct {
     Map *map; /**< Mapa da simulação. */
     Clock *clock; /**< Relógio global da simulação. */
@@ -68,23 +76,12 @@ typedef struct {
  *       mesmo em situações de prioridade de ambulância.
  */
 typedef enum {
-    TRAFFIC_LIGHT_NONE, /**< Ausência de semáforo na posição consultada. */
-    TRAFFIC_LIGHT_RED, /**< Via fechada; veículos devem aguardar. */
-    TRAFFIC_LIGHT_GREEN, /**< Via aberta; veículos podem avançar. */
-    TRAFFIC_LIGHT_YELLOW, /**< Estado de transição; nenhum veículo deve avançar.
-                         */
+    TRAFFIC_LIGHT_NONE,     /**< Ausência de semáforo na posição consultada. */
+    TRAFFIC_LIGHT_RED,      /**< Via fechada; veículos devem aguardar. */
+    TRAFFIC_LIGHT_GREEN,    /**< Via aberta; veículos podem avançar. */
+    TRAFFIC_LIGHT_YELLOW,   /**< Estado de transição; nenhum veículo deve avançar.*/
 } TrafficLightColor;
 
-/**
- * @brief Tipo opaco que representa o semáforo global e seus mecanismos
- * internos.
- *
- * Deve ser sempre usado por meio de um ponteiro:
- * @code{.c}
- * TrafficLight *traffic_light;
- * @endcode
- */
-typedef struct TrafficLight TrafficLight;
 
 /** @} */
 
@@ -98,12 +95,13 @@ typedef struct TrafficLight TrafficLight;
  * inicializa o estado inicial de todas as luzes, além dos recursos
  * internos de sincronização.
  *
+ * @param map Mapa da simulação.
  * @param num Número de interseções no array.
  * @param intersections Array de interseções da malha viária a serem
  *                      controladas por este semáforo.
  * @return Ponteiro para a nova instância, ou NULL em caso de falha.
  */
-TrafficLight *traffic_light_new(int num, Intersection *intersections);
+TrafficLight *traffic_light_new(Map *map, int num, Intersection *intersections);
 
 /**
  * @brief Destrói a instância do semáforo e libera todos os recursos
@@ -155,7 +153,6 @@ void *traffic_light_update(void *args);
  * @return A cor atual da luz naquela posição, ou TRAFFIC_LIGHT_NONE se
  *         a posição não estiver mapeada.
  */
-TrafficLightColor traffic_light_get_current_light(TrafficLight *traffic_light,
-                                                  Coord position);
+TrafficLightColor traffic_light_get_color(TrafficLight *traffic_light, Coord position);
 
 #endif // URBAN_TRAFFIC_TRAFFIC_LIGHT_H

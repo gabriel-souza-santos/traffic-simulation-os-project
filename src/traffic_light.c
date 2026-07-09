@@ -14,35 +14,31 @@
  * @date 2026-07-04
  * @author José Dhonatan
  */
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
 
 #include "traffic_light.h"
 #include "clock.h"
 #include "map.h"
 #include "vehicle.h"
-#include <pthread.h>
-
-#include <bits/pthreadtypes.h>
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "debug.h"
 
 /**
  * @brief Tempo (em ticks) que um eixo permanece aberto.
  */
-#define GREEN_TIME 20
+#define GREEN_TIME 10
 
 /**
  * @brief Tempo (em ticks) da fase para limpar a faixa de transição.
  */
-#define YELLOW_TIME 8
+#define YELLOW_TIME 4
 
 /**
  * @bried Tempo (em ticks) da fase que os carros ficaram parados.
  */
-#define RED_TIME 20 // Não necessario, colocado para melhorar compreensão
+#define RED_TIME 10 // Não necessario, colocado para melhorar compreensão
 
 /**
  * @internal
@@ -96,7 +92,7 @@ struct TrafficLight {
 
 static bool is_horizontal(Direction direction);
 
-static void update_targets(TrafficLight *traffic_light);
+static void update_targets(TrafficLight *traffic_light, Coord priority);
 
 static void transition_light(TrafficLightState *light_state);
 
@@ -127,7 +123,7 @@ static int find_light(TrafficLight *traffic_light, Coord position);
  * @retval NULL Falha na alocação de memória.
  * @retval TrafficLight* Ponteiro para o controlador inicializado.
  */
-TrafficLight *traffic_light_new(const int num, Intersection *intersections) {
+TrafficLight *traffic_light_new(Map *map, const int num, Intersection *intersections) {
     if (!intersections) {
         LOG("Error: parameter 'intersections' cannot be NULL.");
         return NULL;
@@ -156,6 +152,18 @@ TrafficLight *traffic_light_new(const int num, Intersection *intersections) {
      */
     memset(traffic_light, 0, sizeof(TrafficLight));
 
+    for (int i = 0; i < num; i++) {
+        for (int j = 0; j < intersections[i].count; j++) {
+            const Coord tile_position = intersections[i].wait_points[j].position;
+            const TileType tile_type = map_get_tile_type(map, tile_position);
+            if (tile_type != TILE_WAIT) {
+                LOG("Error: wait points must be 'TILE_WAIT'.'");
+                free(traffic_light);
+                return NULL;
+            }
+
+        }
+    }
     traffic_light->intersections = intersections;
     traffic_light->intersection_count = num;
 
@@ -312,20 +320,16 @@ void *traffic_light_update(void *traffic_light_args) {
     TrafficLight *traffic_light = args->traffic_light;
     Clock *clock = args->clock;
 
-    size_t current_tick = clock_get_tick(clock);
-    while (current_tick < TICKS) {
-        current_tick = clock_get_tick(clock);
+    for (size_t t = 0; t < TICKS; t++) {
+        const size_t current_tick = clock_get_tick(clock);
 
         pthread_mutex_lock(&traffic_light->mutex);
         {
-            /* Consulta a prioridade da ambulância.
-             * Caso exista uma ambulância solicitando prioridade, esta
-             * informação será utilizada pela função update_targets(). */
-            // TODO:
-            Coord priority = vehicle_get_priority_coord();
+            // Captura a coordenada de prioridade ativa da ambulância
+            const Coord priority = vehicle_get_priority_coord();
 
-            // Calcula o estado alvo de todas as luzes.
-            update_targets(traffic_light);
+            // Passa a coordenada capturada para a atualização de alvos
+            update_targets(traffic_light, priority);
 
             // Executa uma etapa da máquina de estados.
             update_cycle(traffic_light);
@@ -362,7 +366,7 @@ void *traffic_light_update(void *traffic_light_args) {
  * @return A cor atualmente exibida pelo semáforo.
  */
 
-TrafficLightColor traffic_light_get_current_light(TrafficLight *traffic_light, const Coord position) {
+TrafficLightColor traffic_light_get_color(TrafficLight *traffic_light, const Coord position) {
     if (traffic_light == NULL) {
         return TRAFFIC_LIGHT_NONE;
     }
@@ -448,31 +452,42 @@ static bool is_horizontal(const Direction direction) {
  *
  * @param traffic_light Ponteiro para o controlador de semáforos.
  */
-static void update_targets(TrafficLight *traffic_light) {
+static void update_targets(TrafficLight *traffic_light, Coord priority) {
+    // Define os alvos padrão baseados no ciclo normal da máquina de estados
     for (int i = 0; i < traffic_light->light_count; i++) {
         TrafficLightState *light = &traffic_light->lights[i];
-
-        /* Verifica se a luz pertence ao eixo atualmente aberto.
-         *
-         * Quando o eixo da luz coincide com o eixo ativo da máquina de
-         * estados, sua cor alvo passa a ser GREEN. Caso contrário,
-         * permanece RED. */
 
         if (is_horizontal(light->wait_point.direction) ==
             (traffic_light->current_axis == AXIS_HORIZONTAL)) {
             light->target = TRAFFIC_LIGHT_GREEN;
-        } else {
-            light->target = TRAFFIC_LIGHT_RED;
-        }
+            } else {
+                light->target = TRAFFIC_LIGHT_RED;
+            }
     }
 
-    /**
-     * TODO: Implementar a lógica de prioridade para ambulâncias.
-     *
-     * Quando houver prioridade ativa, o eixo determinado pela ambulância
-     * deverá substituir temporariamente o eixo definido pela máquina de
-     * estados.
-     */
+    /* Sobreposição de Prioridade (Ambulância)
+     * Verifica se existe uma coordenada de prioridade válida emitida pela ambulância.
+     * Assume-se que valores válidos são diferentes de NULL_COORD.x / NULL_COORD.y. */
+    bool has_priority_x = priority.x != NULL_COORD.x;
+    bool has_priority_y = priority.y != NULL_COORD.y;
+
+    if (has_priority_x || has_priority_y) {
+        for (int i = 0; i < traffic_light->light_count; i++) {
+            TrafficLightState *light = &traffic_light->lights[i];
+
+            /* Se a ambulância está travada/avançando em um X fixo (via vertical)
+             * ou em um Y fixo (via horizontal), força a abertura de todas as luzes
+             * daquela reta correspondente */
+            const bool intercepts_ambulance = (
+                (has_priority_x && light->wait_point.position.x == priority.x) ||
+                (has_priority_y && light->wait_point.position.y == priority.y)
+            );
+
+            if (intercepts_ambulance) {
+                light->target = TRAFFIC_LIGHT_GREEN;
+            }
+        }
+    }
 }
 
 /**
@@ -507,7 +522,6 @@ static void transition_light(TrafficLightState *light_state) {
     if (light_state->current == light_state->target) {
         return;
     }
-
 
     switch (light_state->current) {
         /* Antes de fechar/abrir completamente uma via, a luz obrigatoriamente
@@ -590,8 +604,6 @@ static void update_cycle(TrafficLight *traffic_light) {
                 traffic_light->current_axis = AXIS_HORIZONTAL;
             }
 
-            update_targets(traffic_light);
-
             traffic_light->phase = PHASE_GREEN;
             traffic_light->phase_ticks = GREEN_TIME;
 
@@ -645,8 +657,8 @@ static int find_light(TrafficLight *traffic_light, Coord position) {
          * coordenada. Havendo igualdade em ambas, a luz correspondente foi
          * encontrada.
          */
-        if (traffic_light->lights[i].wait_point.cell.x == position.x &&
-            traffic_light->lights[i].wait_point.cell.y == position.y) {
+        if (traffic_light->lights[i].wait_point.position.x == position.x &&
+            traffic_light->lights[i].wait_point.position.y == position.y) {
             /* O índice retornado poderá ser utilizado para acessar
              * diretamente a estrutura TrafficLightState correspondente.
              */
