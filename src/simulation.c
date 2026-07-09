@@ -20,6 +20,7 @@
 #define MAP_PATH        "res/map.txt"
 #define AMBULANCE_PATH  "res/ambulance.txt"
 #define CAR_FAST_PATH   "res/car-fast.txt"
+#define CAR_MEDIUM_PATH "res/car-medium.txt"
 #define CAR_SLOW_PATH   "res/car-slow.txt"
 
 #define TILE_ROAD_PATH    "res/tile-road.txt"
@@ -51,7 +52,7 @@ Simulation *simulation_new(void) {
     render_load_vehicle_asset_all_directions(render, AMBULANCE, AMBULANCE_PATH);
     render_load_vehicle_asset_all_directions(render, CAR_FAST, CAR_FAST_PATH);
     render_load_vehicle_asset_all_directions(render, CAR_SLOW, CAR_SLOW_PATH);
-    render_load_vehicle_asset_all_directions(render, CAR_MEDIUM, CAR_SLOW_PATH);
+    render_load_vehicle_asset_all_directions(render, CAR_MEDIUM, CAR_MEDIUM_PATH);
 
 
     const TileType roads[6] = {
