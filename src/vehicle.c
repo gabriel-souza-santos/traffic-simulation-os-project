@@ -372,6 +372,11 @@ void *vehicle_update(void *vehicle_args) {
         return NULL;
     }
 
+    if (!args->shared->traffic_light) {
+        LOG("Error: thread argument 'shared->traffic_light' is NULL");
+        return NULL;
+    }
+
     Analyser *analyser = args->shared->analyser;
     Clock *clock = args->shared->clock;
     Map *map = args->shared->map;
@@ -383,12 +388,12 @@ void *vehicle_update(void *vehicle_args) {
         const size_t current_tick = clock_get_tick(clock);
 
         Coord target_position = vehicle->position;
-        const TileType target_type = map_get_tile_type(map, target_position);
-        const TrafficLightColor light_color = traffic_light_get_color(traffic_light, target_position);
 
         // Verifica se o veículo DEVE e PODE tentar se mover neste tick
         if (should_move_now(vehicle, clock)) {
             const Coord intended_target = find_next_position(vehicle);
+            const TileType intended_type = map_get_tile_type(map, intended_target);
+            const TrafficLightColor light_color = traffic_light_get_color(traffic_light, intended_target);
 
             // Validações locais (Física e Fronteiras)
             if (!map_is_within_bounds(map, intended_target)) {
@@ -400,10 +405,10 @@ void *vehicle_update(void *vehicle_args) {
             else if (is_overtaking(map, vehicle, intended_target)) {
                 LOG("Info: vehicle(%d) detected forbidden overtaking scheme.", id);
             }
-            else if (target_type == TILE_WAIT && light_color != TRAFFIC_LIGHT_GREEN) {
-
+            else if (intended_type == TILE_WAIT && light_color != TRAFFIC_LIGHT_GREEN) {
             }
             else {
+                /* Destino livre ou semáforo verde: concede a intenção de movimento */
                 target_position = intended_target;
             }
         }
