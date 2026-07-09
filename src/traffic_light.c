@@ -368,6 +368,7 @@ void *traffic_light_update(void *traffic_light_args) {
 
 TrafficLightColor traffic_light_get_color(TrafficLight *traffic_light, const Coord position) {
     if (traffic_light == NULL) {
+        LOG("Error: parameter 'traffic_light' cannot be NULL.");
         return TRAFFIC_LIGHT_NONE;
     }
 
