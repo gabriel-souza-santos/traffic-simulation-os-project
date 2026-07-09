@@ -364,10 +364,17 @@ void *render_update(void *render_args) {
             printf("Tick: %zu\n", current_tick);
 
             const Coord priority= vehicle_get_priority_coord();
-            if (priority.x == NULL_COORD.x) {
-                printf("Priority X: ---\nPriority Y: %d\n", priority.y);
-            } else {
+            if (priority.x == NULL_COORD.x && priority.y == NULL_COORD.y) {
+                printf("Priority X: ---\nPriority Y: ---\n");
+            }
+            else if (priority.x != NULL_COORD.x && priority.y != NULL_COORD.y) {
+                printf("Priority X: %d\nPriority Y: %d\n", priority.x, priority.y);
+            }
+            else if (priority.x != NULL_COORD.x) {
                 printf("Priority X: %d\nPriority Y: ---\n", priority.x);
+            }
+            else {
+                printf("Priority X: ---\nPriority Y: %d\n", priority.y);
             }
 
             printf("%s", render->buffer);
