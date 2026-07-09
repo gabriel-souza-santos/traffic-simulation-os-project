@@ -8,9 +8,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <errno.h>
-#include <unistd.h>
-#include <pthread.h>
 
 #include "render.h"
 #include "clock.h"
@@ -58,29 +55,61 @@ static int tile_type_to_index(const TileType type) {
 
 /**
  * @internal
- * @brief Lê um arquivo de asset e retorna um buffer contendo apenas os
- * caracteres visuais (sem quebras de linha).
+ * @brief Lê um arquivo de asset mantendo o alinhamento bidimensional rígido.
+ * Preenche com espaços as linhas do arquivo que forem menores que a largura do tile.
  */
-static uint8_t *load_asset_from_file(const char *file_name, const size_t asset_size) {
-    if (!file_name || asset_size == 0) return NULL;
+static uint8_t *load_asset_from_file(const char *file_name, const size_t tile_width, const size_t tile_height) {
+    if (!file_name || tile_width == 0 || tile_height == 0) return NULL;
 
+    const size_t asset_size = tile_width * tile_height;
     FILE *file = fopen(file_name, "r");
-    if (!file) return NULL;
+    if (!file) {
+        LOG("Error: failed to open file '%s'.", file_name);
+        return NULL;
+    }
 
     uint8_t *buffer = malloc(asset_size);
     if (!buffer) {
+        LOG("Error: failed to allocate memory for 'buffer'.'");
         fclose(file);
         return NULL;
     }
 
+    /* Inicializa tudo com espaços para garantir fundos limpos */
     memset(buffer, ' ', asset_size);
 
-    size_t written = 0;
+    size_t current_row = 0;
+    size_t current_column = 0;
     int symbol;
+    bool last_was_newline = false;
 
-    while ((symbol = fgetc(file)) != EOF && written < asset_size) {
-        if (symbol == '\n' || symbol == '\r') continue;
-        buffer[written++] = (uint8_t)symbol;
+    while ((symbol = fgetc(file)) != EOF && current_row < tile_height) {
+        if (symbol == '\n' || symbol == '\r') {
+            /* Se for o \n que segue um \r, apenas ignora para não pular duas vezes */
+            if (symbol == '\n' && last_was_newline) {
+                last_was_newline = false;
+                continue;
+            }
+
+            /* Avança para a próxima linha do asset apenas se lemos algo na coluna */
+            if (current_column > 0) {
+                current_row++;
+                current_column = 0;
+            }
+
+            last_was_newline = true;
+            continue;
+        }
+
+        /* Reset do estado de quebra ao encontrar um caractere válido */
+        last_was_newline = false;
+
+        /* Se ainda couber na largura do tile, insere o caractere */
+        if (current_column < tile_width) {
+            const size_t target_index = current_row * tile_width + current_column;
+            buffer[target_index] = (uint8_t)symbol;
+            current_column++;
+        }
     }
 
     fclose(file);
@@ -91,7 +120,7 @@ static uint8_t *load_asset_from_file(const char *file_name, const size_t asset_s
  * @internal
  * @brief Limpa o buffer de caracteres preenchendo-o com espaços e aplicando as quebras de linha corretas.
  */
-static void render_clear_internal_buffer(Render *render) {
+static void render_clear_internal_buffer(const Render *render) {
     size_t out = 0;
     for (size_t row = 0; row < render->buffer_height; row++) {
         memset(render->buffer + out, ' ', render->buffer_width);
@@ -105,11 +134,11 @@ static void render_clear_internal_buffer(Render *render) {
  * @internal
  * @brief Escreve um asset na matriz lógica do buffer de caracteres.
  */
-static void render_write_tile(Render *render, const size_t x, const size_t y, const uint8_t *asset) {
+static void render_write_tile(const Render *render, const size_t x, const size_t y, const uint8_t *asset) {
     const size_t row_stride = render->buffer_width + 1; /* +1 para o '\n' */
 
     for (size_t row = 0; row < render->tile_height; row++) {
-        const size_t buf_offset = ((y * render->tile_height + row) * row_stride) + (x * render->tile_width);
+        const size_t buf_offset = (y * render->tile_height + row) * row_stride + x * render->tile_width;
         const size_t asset_offset = row * render->tile_width;
 
         if (asset) {
@@ -124,7 +153,7 @@ static void render_write_tile(Render *render, const size_t x, const size_t y, co
  * @internal
  * @brief Retorna o asset de um veículo para uma combinação de tipo e direção.
  */
-static const uint8_t *render_get_vehicle_asset(Render *render, const VehicleType type, const Direction direction) {
+static const uint8_t *render_get_vehicle_asset(const Render *render, const VehicleType type, const Direction direction) {
     if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return NULL;
     if (direction <= DIRECTION_NONE || direction >= DIRECTION_COUNT) return NULL;
 
@@ -158,7 +187,7 @@ Render *render_new(const Map *map, const size_t tile_width, const size_t tile_he
         return NULL;
     }
 
-    memset(render->tile_assets,    0, sizeof(render->tile_assets));
+    memset(render->tile_assets, 0, sizeof(render->tile_assets));
     memset(render->vehicle_assets, 0, sizeof(render->vehicle_assets));
 
     return render;
@@ -188,8 +217,7 @@ void render_load_tile_asset(Render *render, const TileType type, const char *fil
     const int mapped_index = tile_type_to_index(type);
     if (mapped_index < 0) return;
 
-    const size_t asset_size = render->tile_width * render->tile_height;
-    uint8_t *asset = load_asset_from_file(file_name, asset_size);
+    uint8_t *asset = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
     if (!asset) return;
 
     free(render->tile_assets[mapped_index]);
@@ -199,13 +227,14 @@ void render_load_tile_asset(Render *render, const TileType type, const char *fil
 void render_load_tile_asset_multi(Render *render, const char *file_name, const TileType *types, const int count) {
     if (!render || !file_name || !types || count <= 0) return;
 
-    const size_t asset_size = render->tile_width * render->tile_height;
-    uint8_t *source = load_asset_from_file(file_name, asset_size);
+    uint8_t *source = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
     if (!source) return;
 
     for (int i = 0; i < count; i++) {
         const int index = tile_type_to_index(types[i]);
         if (index < 0) continue;
+
+        const size_t asset_size = render->tile_width * render->tile_height;
 
         uint8_t *copy = malloc(asset_size);
         if (!copy) continue;
@@ -223,8 +252,7 @@ void render_load_vehicle_asset(Render *render, const VehicleType type, const Dir
     if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
     if (direction <= DIRECTION_NONE || direction >= DIRECTION_COUNT) return;
 
-    const size_t asset_size = render->tile_width * render->tile_height;
-    uint8_t *asset = load_asset_from_file(file_name, asset_size);
+    uint8_t *asset = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
     if (!asset) return;
 
     const int t = (int)type - 1;
@@ -238,10 +266,10 @@ void render_load_vehicle_asset_all_directions(Render *render, const VehicleType 
     if (!render || !file_name) return;
     if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
 
-    const size_t asset_size = render->tile_width * render->tile_height;
-    uint8_t *source = load_asset_from_file(file_name, asset_size);
+    uint8_t *source = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
     if (!source) return;
 
+    const size_t asset_size = render->tile_width * render->tile_height;
     const int t = (int)type - 1;
 
     for (int d = 0; d < DIRECTION_COUNT - 1; d++) {
@@ -260,13 +288,37 @@ void render_load_vehicle_asset_all_directions(Render *render, const VehicleType 
  * @brief Loop principal da Thread do Renderizador (Modo Simples Garantido).
  */
 void *render_update(void *render_args) {
-    if (!render_args) return NULL;
+    if (!render_args) {
+        LOG("Error: parameter 'render_args' is NULL.");
+        return NULL;
+    }
 
     const RenderArgs *args = (RenderArgs *)render_args;
-    Clock     *clock    = args->clock;
-    Map       *map      = args->map;
-    Render    *render   = args->render;
-    Vehicle  **vehicles = args->vehicles;
+
+    if (!args->clock) {
+        LOG("Error: thread argument 'clock' is NULL.");
+        return NULL;
+    }
+
+    if (!args->map) {
+        LOG("Error: thread argument 'map' is NULL.");
+        return NULL;
+    }
+
+    if (!args->render) {
+        LOG("Error: thread argument 'render' is NULL.");
+        return NULL;
+    }
+
+    if (!args->vehicles) {
+        LOG("Error: thread argument 'vehicles' is NULL.");
+        return NULL;
+    }
+
+    Clock *clock = args->clock;
+    Map *map = args->map;
+    Render *render = args->render;
+    Vehicle **vehicles = args->vehicles;
 
     const size_t map_width  = map_get_width(map);
     const size_t map_height = map_get_height(map);
@@ -274,17 +326,18 @@ void *render_update(void *render_args) {
     for (int t = 0; t < TICKS; t++) {
         const size_t current_tick = clock_get_tick(clock);
 
-        /* 1. Reseta a estrutura do buffer preenchendo-o com espaços e quebras de linha */
+
+        /* Reseta a estrutura do buffer preenchendo-o com espaços e quebras de linha */
         render_clear_internal_buffer(render);
 
-        /* 2. Redesenho Total: Reconstrói os tiles do mapa de fundo no buffer */
+        /* Redesenho Total: Reconstrói os tiles do mapa de fundo no buffer */
         for (size_t y = 0; y < map_height; y++) {
             for (size_t x = 0; x < map_width; x++) {
-                const Coord pos    = {(int)x, (int)y};
-                const TileType type = map_get_tile_type(map, pos);
-                const int index    = tile_type_to_index(type);
+                const Coord position = {(int)x, (int)y};
+                const TileType type = map_get_tile_type(map, position);
+                const int index = tile_type_to_index(type);
 
-                const uint8_t *asset = (index >= 0 && render->tile_assets[index])
+                const uint8_t *asset = index >= 0 && render->tile_assets[index]
                     ? render->tile_assets[index]
                     : NULL;
 
@@ -292,22 +345,23 @@ void *render_update(void *render_args) {
             }
         }
 
-        /* 3. Sobreposição: Insere TODOS os veículos ativos nas posições atuais */
+        /* Sobreposição: Insere TODOS os veículos ativos nas posições atuais */
         for (int i = 0; i < VEHICLE_COUNT; i++) {
-            const Coord pos        = vehicle_get_position(vehicles[i]);
+            const Coord position = vehicle_get_position(vehicles[i]);
             const VehicleType type = vehicle_get_type(vehicles[i]);
-            const Direction dir    = vehicle_get_direction(vehicles[i]);
+            const Direction direction = vehicle_get_direction(vehicles[i]);
 
-            const uint8_t *asset = render_get_vehicle_asset(render, type, dir);
+            const uint8_t *asset = render_get_vehicle_asset(render, type, direction);
 
             /* Validação de salvaguarda de limites do mapa antes de injetar */
-            if (pos.x >= 0 && (size_t)pos.x < map_width && pos.y >= 0 && (size_t)pos.y < map_height) {
-                render_write_tile(render, (size_t)pos.x, (size_t)pos.y, asset);
+            if (map_is_within_bounds(map, position)) {
+                render_write_tile(render, (size_t)position.x, (size_t)position.y, asset);
             }
         }
 
-        /* 4. Flush Determinístico: Limpa o terminal, descarrega a string e sincroniza */
+        /* Flush Determinístico: Limpa o terminal, descarrega a string e sincroniza */
         if (system("clear") == 0) {
+            printf("Tick: %zu\n", current_tick);
             printf("%s", render->buffer);
             fflush(stdout);
         }
