@@ -296,8 +296,6 @@ Vehicle *vehicle_new(Map *map, const int id) {
     // Aloca e inicializa as propriedades de um veículo.
     // CRITÉRIO: Cada veículo possui identificador, posição, direção, velocidade, tipo, e rota.
 
-    // TODO: adicionar criação interna de IDs auto-incrementais
-
     Vehicle *vehicle = malloc(sizeof(Vehicle));
     if (!vehicle) {
         LOG("Error: failed to allocate memory for 'vehicle'");
@@ -306,25 +304,29 @@ Vehicle *vehicle_new(Map *map, const int id) {
 
     vehicle->id = id;
 
-  /*
-   * A sequência de condicoes else if a seguir garante a presença de pelo menos
-   * um carro com cada velocidade indicada no relógio global, pois se
-   * mantivéssemos aleatoriamente em todos os carros poderiam ocorrer sorteios
-   * especificos todos os carros terem a mesma velocidade.
-   */
-
-    // TODO: Melhorar o fator aleatório
-
     if (id == 0) {
         vehicle->type = AMBULANCE;
-    } else if (id == 1) {
-        vehicle->type = CAR_FAST;
-    } else if (id == 2) {
-        vehicle->type = CAR_MEDIUM;
-    } else if (id == 3) {
-        vehicle->type = CAR_SLOW;
     } else {
-        vehicle->type = (VehicleType)(rand() % 3 + 2);
+        switch ((id - 1) % 3) {
+            case 0:
+                vehicle->type = CAR_FAST;
+                break;
+            case 1:
+                vehicle->type = CAR_MEDIUM;
+                break;
+            case 2:
+                vehicle->type = CAR_SLOW;
+                break;
+            default:
+                vehicle->type = NO_VEHICLE;
+                break;
+        }
+    }
+
+    if (vehicle->type == NO_VEHICLE) {
+        LOG("Error: 'vehicle->type' have not been properly defined.");
+        free(vehicle);
+        return NULL;
     }
 
     vehicle->position = map_reserve_spawn_point(map);
