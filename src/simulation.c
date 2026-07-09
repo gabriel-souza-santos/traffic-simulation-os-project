@@ -80,6 +80,9 @@ Simulation *simulation_new(void) {
     render_load_tile_asset(simulation->render, TILE_BLOCKED, TILE_BLOCKED_PATH);
 
 
+    /* Inicialização Hardcoded para garantir a lógica dos semáforos. Implementar um algorítmo que
+     * mapeasse adequadamente as interseções e pontos de espera seria complexo e levaria tempo */
+
     WaitPoint intersection1[2] = {
         { .position = {5, 0 }, .direction = DIRECTION_LEFT },
         { .position = {4, 1 }, .direction = DIRECTION_UP },
@@ -175,6 +178,7 @@ void simulation_run(Simulation *simulation) {
         .analyser = simulation->analyser,
         .clock = simulation->clock,
         .map = simulation->map,
+        .traffic_light = simulation->traffic_light,
     };
 
     VehicleArgs vehicle_args[VEHICLE_COUNT];
