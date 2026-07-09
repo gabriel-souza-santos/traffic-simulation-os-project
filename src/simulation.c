@@ -14,8 +14,8 @@
 #include "clock.h"
 #include "debug.h"
 
-#define TILE_WIDTH      1
-#define TILE_HEIGHT     1
+#define TILE_WIDTH      15
+#define TILE_HEIGHT     4
 
 #define MAP_PATH        "res/map.txt"
 #define AMBULANCE_PATH  "res/ambulance.txt"
