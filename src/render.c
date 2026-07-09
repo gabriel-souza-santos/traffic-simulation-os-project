@@ -359,11 +359,19 @@ void *render_update(void *render_args) {
             }
         }
 
-        /* Flush Determinístico: Limpa o terminal, descarrega a string e sincroniza */
+
         if (system("clear") == 0) {
             printf("Tick: %zu\n", current_tick);
+
+            const Coord priority= vehicle_get_priority_coord();
+            if (priority.x == NULL_COORD.x) {
+                printf("Priority X: ---\nPriority Y: %d\n", priority.y);
+            } else {
+                printf("Priority X: %d\nPriority Y: ---\n", priority.x);
+            }
+
             printf("%s", render->buffer);
-            fflush(stdout);
+            fflush(stdout); // Limpa o terminal, descarrega a string e sincroniza
         }
 
         clock_signal(clock, current_tick);
