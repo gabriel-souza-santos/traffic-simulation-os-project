@@ -189,10 +189,15 @@ static void fill_tiles(const Map *map, FILE *file) {
                 case TILE_ROAD_DOWN:
                 case TILE_ROAD_LEFT:
                 case TILE_ROAD_RIGHT:
+                case TILE_TURN_UP:
+                case TILE_TURN_DOWN:
+                case TILE_TURN_LEFT:
+                case TILE_TURN_RIGHT:
                 case TILE_ROAD:
                 case TILE_WAIT:
                     tile->type = (TileType)symbol;
                     break;
+
                 default:
                     tile->type = TILE_BLOCKED;
                     tile->is_occupied = true;

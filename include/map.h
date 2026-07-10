@@ -45,9 +45,15 @@ typedef enum {
     TILE_ROAD_RIGHT = '>',  /**< Via com sentido leste (direita na matriz). */
     TILE_ROAD       = '.',  /**< Via sem sentido definido (usado em interseções) */
     TILE_WAIT       = '!',  /**< Célula que indica uma área de espera/parada */
+
+    /* O veículo pode escolher mudar a direção ou seguir com a sua */
+    TILE_TURN_LEFT  = 'l',
+    TILE_TURN_RIGHT = 'r',
+    TILE_TURN_UP    = 'u',
+    TILE_TURN_DOWN  = 'd',
 } TileType;
 
-#define TILE_TYPE_COUNT 7
+#define TILE_TYPE_COUNT 11
 
 /**
  * @brief Estrutura opaca para o mapa, para reforçar o encapsulamento.
