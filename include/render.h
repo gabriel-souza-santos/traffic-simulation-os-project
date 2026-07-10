@@ -52,8 +52,6 @@ typedef struct {
 
 /** @} */
 
-/** @name API pública */
-/** @{ */
 
 /**
  * @brief Cria e inicializa uma nova instância do renderizador.
@@ -179,7 +177,5 @@ void render_load_vehicle_asset_all_directions(Render *render,
  * @param file_name Caminho do arquivo de asset a ser carregado.
  */
 void render_load_traffic_light_asset(Render *render, TrafficLightColor color, const char *file_name);
-
-/** @} */
 
 #endif //URBAN_TRAFFIC_RENDER_H

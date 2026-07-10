@@ -16,6 +16,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+/** @name Estruturas de dados */
+/** @{ */
 
 /**
  * @brief Representação de uma coordenada bidimensional na malha do mapa.
@@ -65,6 +67,7 @@ typedef enum {
  */
 typedef struct Map Map;
 
+/** @} */
 
 /**
  * @brief Aloca recursos, inicializa recursos internos e carrega o mapa.

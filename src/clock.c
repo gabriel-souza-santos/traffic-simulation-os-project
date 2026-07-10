@@ -110,13 +110,13 @@ size_t clock_get_tick(Clock *clock) {
  * @brief Implementação do laço principal da thread do relógio.
  *
  * A cada iteração, bloqueia em @c cond_clock enquanto
- * @c completed_count for menor que @c VEHICLE_COUNT — isto é, espera que todos
- * os veículos sinalizem conclusão do tick atual. Ao acordar, zera
- * @c completed_count, incrementa o tick atual e libera todos os veículos de
- * uma vez com @c pthread_cond_broadcast em @c cond_vehicles.
+ * @c completed_count for menor que @c total_workers — isto é, espera que todos
+ * os trabalhadores sinalizem conclusão do tick atual. Ao acordar, zera
+ * @c completed_count, incrementa o tick atual e libera todos os trabalhadores de
+ * uma vez com @c pthread_cond_broadcast em @c cond_workers.
  *
  * @note O uso de @c while (em vez de @c if) ao redor de @c pthread_cond_wait
- *       protege contra despertar repentino de uma thread.
+ * protege contra despertar repentino (spurious wakeup) de uma thread.
  */
 void *clock_update(void *clock_args) {
     if (!clock_args) {
@@ -157,15 +157,15 @@ void *clock_update(void *clock_args) {
             clock->completed_count = 0;
             clock->current_tick++;
 
-            struct timespec sleep_time = {
-                .tv_sec = 0,
-                .tv_nsec = 500000000L, // (0.5 s)
-            };
-            nanosleep(&sleep_time, NULL);
-
             TRY(pthread_cond_broadcast(&clock->cond_workers));
         }
         TRY(pthread_mutex_unlock(&clock->mutex));
+
+        struct timespec sleep_time = {
+            .tv_sec = 0,
+            .tv_nsec = 750000000L, // (0.75 s)
+        };
+        nanosleep(&sleep_time, NULL);
     }
 
     return NULL;
