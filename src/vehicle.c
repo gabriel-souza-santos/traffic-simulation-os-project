@@ -53,11 +53,19 @@ struct Vehicle {
  *         uma via com sentido definido (ex: TILE_ROAD, TILE_WAIT, TILE_BLOCKED).
  */
 static Direction find_direction_from_tile(const TileType tile_type) {
+    const bool should_turn = rand() % 2 == 0;
+
     switch (tile_type) {
         case TILE_ROAD_UP:      return DIRECTION_UP;
         case TILE_ROAD_DOWN:    return DIRECTION_DOWN;
         case TILE_ROAD_LEFT:    return DIRECTION_LEFT;
         case TILE_ROAD_RIGHT:   return DIRECTION_RIGHT;
+
+        case TILE_TURN_UP:      return  should_turn? DIRECTION_UP    : DIRECTION_NONE;
+        case TILE_TURN_DOWN:    return  should_turn? DIRECTION_DOWN  : DIRECTION_NONE;
+        case TILE_TURN_LEFT:    return  should_turn? DIRECTION_LEFT  : DIRECTION_NONE;
+        case TILE_TURN_RIGHT:   return  should_turn? DIRECTION_RIGHT : DIRECTION_NONE;
+
         default:                return DIRECTION_NONE;
     }
 }
