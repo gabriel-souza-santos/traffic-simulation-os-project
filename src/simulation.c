@@ -4,9 +4,13 @@
  * @date 2026-07-05
  */
 #include <stdlib.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <time.h>
 #include <pthread.h>
 
 #include "simulation.h"
+
 #include "analyser.h"
 #include "render.h"
 #include "map.h"
@@ -15,8 +19,6 @@
 #include "debug.h"
 #include "traffic_light.h"
 
-#define TILE_WIDTH 16
-#define TILE_HEIGHT 4
 
 #define PATH_MAP_DATA "res/data/map-data.txt"
 
@@ -55,6 +57,40 @@ struct Simulation {
  * Funções Auxiliares Internas
  * ============================================================================ */
 
+
+/**
+ * @internal
+ * @brief Exibe e processa o menu CLI antes da simulação iniciar.
+ */
+static void prompt_cli_configuration(size_t *out_ticks, char *out_mode) {
+    char buffer[256];
+
+    printf("=== Urban Traffic Simulator ===\n\n");
+    printf("Use default settings? [Y/n] ");
+
+    if (!fgets(buffer, sizeof(buffer), stdin)) return;
+
+    /* Se o usuário digitar 'n' ou 'N', entramos no modo de configuração manual */
+    if (buffer[0] == 'n' || buffer[0] == 'N') {
+        printf("\n> Total ticks [%zu]: ", *out_ticks);
+        if (fgets(buffer, sizeof(buffer), stdin) && buffer[0] != '\n') {
+            long ticks = strtol(buffer, NULL, 10);
+            if (ticks > 0) {
+                *out_ticks = (size_t)ticks;
+            }
+        }
+
+        printf("\n- A: ASCII arts (16x4 tiles)\n- C: Single characters (1x1 tiles)\n> Rendering Mode [%c/c]: ", *out_mode);
+        if (fgets(buffer, sizeof(buffer), stdin) && buffer[0] != '\n') {
+            char mode = (char)toupper(buffer[0]);
+            if (mode == 'A' || mode == 'C') {
+                *out_mode = mode;
+            }
+        }
+        printf("\n");
+    }
+}
+
 /**
  * @internal
  * @brief Carrega os assets de um veículo agrupando direções que compartilham a mesma arte.
@@ -80,36 +116,60 @@ Simulation *simulation_new(void) {
         return NULL;
     }
 
+    /* Valores padrão */
+    size_t total_ticks = 100;
+    char render_mode = 'A';
+
+    /* Invoca a interface de linha de comando para sobrescrever os padrões se desejado */
+    prompt_cli_configuration(&total_ticks, &render_mode);
+
+    /* Dimensões da célula dependem do modo de renderização escolhido */
+    const size_t tile_width  = (render_mode == 'A') ? 16 : 3;
+    const size_t tile_height = (render_mode == 'A') ? 4  : 1;
     const size_t total_workers = VEHICLE_COUNT + 3; /* analyser, render, traffic_light */
 
     simulation->analyser = analyser_new();
-    simulation->clock = clock_new(total_workers);
+    simulation->clock = clock_new(total_workers, total_ticks);
     simulation->map = map_new(PATH_MAP_DATA);
-    simulation->render = render_new(simulation->map, TILE_WIDTH, TILE_HEIGHT);
+    simulation->render = render_new(simulation->map, tile_width, tile_height);
 
     for (int i = 0; i < VEHICLE_COUNT; i++) {
         simulation->vehicles[i] = vehicle_new(simulation->map, i);
     }
 
-    /* Carregamento simplificado de Veículos */
-    load_vehicle_assets(simulation->render, AMBULANCE,  PATH_AMBULANCE_LEFT,  PATH_AMBULANCE_RIGHT);
-    load_vehicle_assets(simulation->render, CAR_FAST,   PATH_CAR_FAST_LEFT,   PATH_CAR_FAST_RIGHT);
-    load_vehicle_assets(simulation->render, CAR_MEDIUM, PATH_CAR_MEDIUM_LEFT, PATH_CAR_MEDIUM_RIGHT);
-    load_vehicle_assets(simulation->render, CAR_SLOW,   PATH_CAR_SLOW_LEFT,   PATH_CAR_SLOW_RIGHT);
-
-    /* Carregamento de Tiles */
     const TileType roads[9] = {
         TILE_ROAD_UP, TILE_ROAD_DOWN, TILE_ROAD_LEFT, TILE_ROAD_RIGHT,
         TILE_TURN_UP, TILE_TURN_DOWN, TILE_TURN_LEFT, TILE_TURN_RIGHT,
         TILE_ROAD
     };
-    render_load_tile_asset_multi(simulation->render, PATH_TILE_ROAD, roads, 9);
-    render_load_tile_asset(simulation->render, TILE_BLOCKED, PATH_TILE_BLOCKED);
 
-    /* 3. Carregamento de Semáforos */
-    render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_RED,    PATH_LIGHT_RED);
-    render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_GREEN,  PATH_LIGHT_GREEN);
-    render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_YELLOW, PATH_LIGHT_YELLOW);
+    /* Carregamento condicional de assets baseado na escolha do usuário */
+    if (render_mode == 'A') {
+        load_vehicle_assets(simulation->render, AMBULANCE,  PATH_AMBULANCE_LEFT,  PATH_AMBULANCE_RIGHT);
+        load_vehicle_assets(simulation->render, CAR_FAST,   PATH_CAR_FAST_LEFT,   PATH_CAR_FAST_RIGHT);
+        load_vehicle_assets(simulation->render, CAR_MEDIUM, PATH_CAR_MEDIUM_LEFT, PATH_CAR_MEDIUM_RIGHT);
+        load_vehicle_assets(simulation->render, CAR_SLOW,   PATH_CAR_SLOW_LEFT,   PATH_CAR_SLOW_RIGHT);
+
+        render_load_tile_asset_multi(simulation->render, PATH_TILE_ROAD, roads, 9);
+        render_load_tile_asset(simulation->render, TILE_BLOCKED, PATH_TILE_BLOCKED);
+
+        render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_RED,    PATH_LIGHT_RED);
+        render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_GREEN,  PATH_LIGHT_GREEN);
+        render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_YELLOW, PATH_LIGHT_YELLOW);
+    }
+    else { // Modo 'C' - Single Characters
+        render_load_vehicle_asset_all_directions_from_string(simulation->render, AMBULANCE, " A ");
+        render_load_vehicle_asset_all_directions_from_string(simulation->render, CAR_FAST,  " F ");
+        render_load_vehicle_asset_all_directions_from_string(simulation->render, CAR_MEDIUM," M ");
+        render_load_vehicle_asset_all_directions_from_string(simulation->render, CAR_SLOW,  " S ");
+
+        render_load_tile_asset_multi_from_string(simulation->render, " . ", roads, 9);
+        render_load_tile_asset_from_string(simulation->render, TILE_BLOCKED, " # ");
+
+        render_load_traffic_light_asset_from_string(simulation->render, TRAFFIC_LIGHT_RED,    " r ");
+        render_load_traffic_light_asset_from_string(simulation->render, TRAFFIC_LIGHT_GREEN,  " g ");
+        render_load_traffic_light_asset_from_string(simulation->render, TRAFFIC_LIGHT_YELLOW, " y ");
+    }
 
     /* Mapeamento de Interseções via Compound Literals */
     Intersection intersections[8] = {

@@ -392,7 +392,8 @@ void *vehicle_update(void *vehicle_args) {
     Vehicle *vehicle = args->vehicle;
     const int id = vehicle->id;
 
-    for (int t = 0; t < TICKS; t++) {
+    const size_t total_ticks = clock_get_total_ticks(clock);
+    for (size_t t = 0; t < total_ticks; t++) {
         const size_t current_tick = clock_get_tick(clock);
 
         Coord target_position = vehicle->position;

@@ -193,7 +193,8 @@ void *analyser_update(void *analyser_args) {
      */
     bool destinations[map_width][map_height];
 
-    for (int t = 0; t < TICKS; t++) {
+    const size_t total_ticks = clock_get_total_ticks(clock);
+    for (size_t t = 0; t < total_ticks; t++) {
         // Faz reset das requisições (sizeof é avaliado em runtime)
         memset(destinations, false, sizeof(destinations));
 

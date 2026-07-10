@@ -133,6 +133,56 @@ static uint8_t *load_asset_from_file(const char *file_name, const size_t tile_wi
     return buffer;
 }
 
+
+/**
+ * @internal
+ * @brief Lê um asset a partir de uma string mantendo o alinhamento bidimensional.
+ * Preenche com espaços as linhas que forem menores que a largura do tile.
+ */
+static uint8_t *load_asset_from_string(const char *sprite_data, const size_t tile_width, const size_t tile_height) {
+    if (!sprite_data || tile_width == 0 || tile_height == 0) return NULL;
+
+    const size_t asset_size = tile_width * tile_height;
+    uint8_t *buffer = malloc(asset_size);
+    if (!buffer) {
+        LOG("Error: failed to allocate memory for 'buffer' in string loader.");
+        return NULL;
+    }
+
+    /* Inicializa tudo com espaços para garantir fundos limpos */
+    memset(buffer, ' ', asset_size);
+
+    size_t current_row = 0;
+    size_t current_column = 0;
+
+    for (size_t i = 0; sprite_data[i] != '\0' && current_row < tile_height; i++) {
+        char symbol = sprite_data[i];
+
+        if (symbol == '\r') {
+            continue;
+        }
+
+        if (symbol == '\n') {
+            /* Permite pular quebras de linha puramente estéticas no início de strings literais */
+            if (current_column > 0 || i > 0) {
+                current_row++;
+                current_column = 0;
+            }
+            continue;
+        }
+
+        /* Se ainda couber na largura do tile, insere o caractere */
+        if (current_column < tile_width) {
+            const size_t target_index = current_row * tile_width + current_column;
+            buffer[target_index] = (uint8_t)symbol;
+            current_column++;
+        }
+    }
+
+    return buffer;
+}
+
+
 /**
  * @internal
  * @brief Limpa o buffer de caracteres preenchendo-o com espaços e aplicando as quebras de linha corretas.
@@ -233,95 +283,7 @@ void render_destroy(Render *render) {
     free(render);
 }
 
-void render_load_tile_asset(Render *render, const TileType type, const char *file_name) {
-    if (!render || !file_name) return;
 
-    const int mapped_index = tile_type_to_index(type);
-    if (mapped_index < 0) return;
-
-    uint8_t *asset = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
-    if (!asset) return;
-
-    free(render->tile_assets[mapped_index]);
-    render->tile_assets[mapped_index] = asset;
-}
-
-void render_load_tile_asset_multi(Render *render, const char *file_name, const TileType *types, const int count) {
-    if (!render || !file_name || !types || count <= 0) return;
-
-    uint8_t *source = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
-    if (!source) return;
-
-    for (int i = 0; i < count; i++) {
-        const int index = tile_type_to_index(types[i]);
-        if (index < 0) continue;
-
-        const size_t asset_size = render->tile_width * render->tile_height;
-
-        uint8_t *copy = malloc(asset_size);
-        if (!copy) continue;
-
-        memcpy(copy, source, asset_size);
-        free(render->tile_assets[index]);
-        render->tile_assets[index] = copy;
-    }
-
-    free(source);
-}
-
-void render_load_vehicle_asset(Render *render, const VehicleType type, const Direction direction, const char *file_name) {
-    if (!render || !file_name) return;
-    if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
-    if (direction <= DIRECTION_NONE || direction >= DIRECTION_COUNT) return;
-
-    uint8_t *asset = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
-    if (!asset) return;
-
-    const int t = (int)type - 1;
-    const int d = (int)direction - 1;
-
-    free(render->vehicle_assets[t][d]);
-    render->vehicle_assets[t][d] = asset;
-}
-
-void render_load_vehicle_asset_all_directions(Render *render, const VehicleType type, const char *file_name) {
-    if (!render || !file_name) return;
-    if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
-
-    uint8_t *source = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
-    if (!source) return;
-
-    const size_t asset_size = render->tile_width * render->tile_height;
-    const int t = (int)type - 1;
-
-    for (int d = 0; d < DIRECTION_COUNT - 1; d++) {
-        uint8_t *copy = malloc(asset_size);
-        if (!copy) continue;
-
-        memcpy(copy, source, asset_size);
-        free(render->vehicle_assets[t][d]);
-        render->vehicle_assets[t][d] = copy;
-    }
-
-    free(source);
-}
-
-void render_load_traffic_light_asset(Render *render, const TrafficLightColor color, const char *file_name) {
-    if (!render || !file_name) return;
-
-    const int mapped_index = traffic_light_color_to_index(color);
-    if (mapped_index < 0) return;
-
-    uint8_t *asset = load_asset_from_file(file_name, render->tile_width, render->tile_height);
-    if (!asset) return;
-
-    free(render->traffic_light_assets[mapped_index]);
-    render->traffic_light_assets[mapped_index] = asset;
-}
-
-/**
- * @brief Loop principal da Thread do Renderizador (Modo Simples Garantido).
- */
 void *render_update(void *render_args) {
     if (!render_args) {
         LOG("Error: parameter 'render_args' is NULL.");
@@ -364,7 +326,8 @@ void *render_update(void *render_args) {
     const size_t map_width  = map_get_width(map);
     const size_t map_height = map_get_height(map);
 
-    for (int t = 0; t < TICKS; t++) {
+    const size_t total_ticks = clock_get_total_ticks(clock);
+    for (size_t t = 0; t < total_ticks; t++) {
         const size_t current_tick = clock_get_tick(clock);
 
 
@@ -452,3 +415,186 @@ void *render_update(void *render_args) {
 
     return NULL;
 }
+
+
+void render_load_tile_asset(Render *render, const TileType type, const char *file_name) {
+    if (!render || !file_name) return;
+
+    const int mapped_index = tile_type_to_index(type);
+    if (mapped_index < 0) return;
+
+    uint8_t *asset = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
+    if (!asset) return;
+
+    free(render->tile_assets[mapped_index]);
+    render->tile_assets[mapped_index] = asset;
+}
+
+
+void render_load_tile_asset_multi(Render *render, const char *file_name, const TileType *types, const int count) {
+    if (!render || !file_name || !types || count <= 0) return;
+
+    uint8_t *source = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
+    if (!source) return;
+
+    for (int i = 0; i < count; i++) {
+        const int index = tile_type_to_index(types[i]);
+        if (index < 0) continue;
+
+        const size_t asset_size = render->tile_width * render->tile_height;
+
+        uint8_t *copy = malloc(asset_size);
+        if (!copy) continue;
+
+        memcpy(copy, source, asset_size);
+        free(render->tile_assets[index]);
+        render->tile_assets[index] = copy;
+    }
+
+    free(source);
+}
+
+
+void render_load_vehicle_asset(Render *render, const VehicleType type, const Direction direction, const char *file_name) {
+    if (!render || !file_name) return;
+    if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
+    if (direction <= DIRECTION_NONE || direction >= DIRECTION_COUNT) return;
+
+    uint8_t *asset = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
+    if (!asset) return;
+
+    const int t = (int)type - 1;
+    const int d = (int)direction - 1;
+
+    free(render->vehicle_assets[t][d]);
+    render->vehicle_assets[t][d] = asset;
+}
+
+
+void render_load_vehicle_asset_all_directions(Render *render, const VehicleType type, const char *file_name) {
+    if (!render || !file_name) return;
+    if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
+
+    uint8_t *source = load_asset_from_file(file_name, render->tile_width,  render->tile_height);
+    if (!source) return;
+
+    const size_t asset_size = render->tile_width * render->tile_height;
+    const int t = (int)type - 1;
+
+    for (int d = 0; d < DIRECTION_COUNT - 1; d++) {
+        uint8_t *copy = malloc(asset_size);
+        if (!copy) continue;
+
+        memcpy(copy, source, asset_size);
+        free(render->vehicle_assets[t][d]);
+        render->vehicle_assets[t][d] = copy;
+    }
+
+    free(source);
+}
+
+
+void render_load_traffic_light_asset(Render *render, const TrafficLightColor color, const char *file_name) {
+    if (!render || !file_name) return;
+
+    const int mapped_index = traffic_light_color_to_index(color);
+    if (mapped_index < 0) return;
+
+    uint8_t *asset = load_asset_from_file(file_name, render->tile_width, render->tile_height);
+    if (!asset) return;
+
+    free(render->traffic_light_assets[mapped_index]);
+    render->traffic_light_assets[mapped_index] = asset;
+}
+
+
+void render_load_tile_asset_from_string(Render *render, const TileType type, const char *sprite_data) {
+    if (!render || !sprite_data) return;
+
+    const int mapped_index = tile_type_to_index(type);
+    if (mapped_index < 0) return;
+
+    uint8_t *asset = load_asset_from_string(sprite_data, render->tile_width, render->tile_height);
+    if (!asset) return;
+
+    free(render->tile_assets[mapped_index]);
+    render->tile_assets[mapped_index] = asset;
+}
+
+
+void render_load_tile_asset_multi_from_string(Render *render, const char *sprite_data, const TileType *types, const int count) {
+    if (!render || !sprite_data || !types || count <= 0) return;
+
+    uint8_t *source = load_asset_from_string(sprite_data, render->tile_width, render->tile_height);
+    if (!source) return;
+
+    for (int i = 0; i < count; i++) {
+        const int index = tile_type_to_index(types[i]);
+        if (index < 0) continue;
+
+        const size_t asset_size = render->tile_width * render->tile_height;
+
+        uint8_t *copy = malloc(asset_size);
+        if (!copy) continue;
+
+        memcpy(copy, source, asset_size);
+        free(render->tile_assets[index]);
+        render->tile_assets[index] = copy;
+    }
+
+    free(source);
+}
+
+
+void render_load_vehicle_asset_from_string(Render *render, const VehicleType type, const Direction direction, const char *sprite_data) {
+    if (!render || !sprite_data) return;
+    if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
+    if (direction <= DIRECTION_NONE || direction >= DIRECTION_COUNT) return;
+
+    uint8_t *asset = load_asset_from_string(sprite_data, render->tile_width, render->tile_height);
+    if (!asset) return;
+
+    const int t = (int)type - 1;
+    const int d = (int)direction - 1;
+
+    free(render->vehicle_assets[t][d]);
+    render->vehicle_assets[t][d] = asset;
+}
+
+
+void render_load_vehicle_asset_all_directions_from_string(Render *render, const VehicleType type, const char *sprite_data) {
+    if (!render || !sprite_data) return;
+    if (type <= NO_VEHICLE || type >= VEHICLE_TYPE_COUNT) return;
+
+    uint8_t *source = load_asset_from_string(sprite_data, render->tile_width, render->tile_height);
+    if (!source) return;
+
+    const size_t asset_size = render->tile_width * render->tile_height;
+    const int t = (int)type - 1;
+
+    for (int d = 0; d < DIRECTION_COUNT - 1; d++) {
+        uint8_t *copy = malloc(asset_size);
+        if (!copy) continue;
+
+        memcpy(copy, source, asset_size);
+        free(render->vehicle_assets[t][d]);
+        render->vehicle_assets[t][d] = copy;
+    }
+
+    free(source);
+}
+
+
+void render_load_traffic_light_asset_from_string(Render *render, const TrafficLightColor color, const char *sprite_data) {
+    if (!render || !sprite_data) return;
+
+    const int mapped_index = traffic_light_color_to_index(color);
+    if (mapped_index < 0) return;
+
+    uint8_t *asset = load_asset_from_string(sprite_data, render->tile_width, render->tile_height);
+    if (!asset) return;
+
+    free(render->traffic_light_assets[mapped_index]);
+    render->traffic_light_assets[mapped_index] = asset;
+}
+

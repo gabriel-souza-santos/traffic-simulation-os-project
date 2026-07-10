@@ -21,15 +21,6 @@
 // Forward declaration
 typedef struct TrafficLight TrafficLight;
 
-/**
- * @brief Número total de ticks da simulação.
- *
- * @note Poderá ser removido posteriormente e substituído
- * por booleanos/variáveis de condição internas para indicar que
- * a simulação está ativa.
- */
-#define TICKS 1000
-
 
 /**
  * @brief Tipo opaco que representa o relógio global e os seus mecanismos de sincronização.
@@ -60,10 +51,11 @@ typedef struct {
  * o tick inicial como zero.
  *
  * @param total_workers Número de threads trabalhadoras que o relógio tem que esperar.
+ * @param total_ticks   Número de ticks totais da simulação.
  *
  * @return Um ponteiro para a estrutura recém-criada.
  */
-Clock *clock_new(size_t total_workers);
+Clock *clock_new(size_t total_workers, size_t total_ticks);
 
 
 /**
@@ -121,6 +113,15 @@ void clock_signal(Clock *clock, size_t tick);
  * @return O número exato do tick atual da simulação.
  */
 size_t clock_get_tick(Clock *clock);
+
+/**
+ * @brief Retorna o número ticks total da simulação, passado na inicialização do clock.
+ *
+ * @param clock Ponteiro para o relógio do sistema
+ *
+ * @return O número de ticks totais da simulação.
+ */
+size_t clock_get_total_ticks(Clock *clock);
 
 #endif //URBAN_TRAFFIC_CLOCK_H
 

@@ -361,7 +361,8 @@ void *traffic_light_update(void *traffic_light_args) {
     TrafficLight *traffic_light = args->traffic_light;
     Clock *clock = args->clock;
 
-    for (size_t t = 0; t < TICKS; t++) {
+    const size_t total_ticks = clock_get_total_ticks(clock);
+    for (size_t t = 0; t < total_ticks; t++) {
         const size_t current_tick = clock_get_tick(clock);
 
         pthread_mutex_lock(&traffic_light->mutex);

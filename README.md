@@ -33,6 +33,34 @@ cmake -S . -B build && cmake --build build && ./build/bin/urban_traffic
 ```
  
 > Devido ao uso da biblioteca POSIX Threads, a compatibilidade deste projeto é limitada a sistemas Linux ou ambientes compatíveis (WSL no Windows).
+
+## Configuração de Inicialização
+
+Ao executar o simulador, o programa exibe uma interface de linha de comando (CLI) para permitir a personalização da execução antes da simulação começar. Você pode optar pelo setup padrão ou configurar os parâmetros manualmente.
+
+### Fluxo de Setup
+1. **Configuração Rápida:** Ao iniciar, o sistema pergunta se deseja usar as configurações padrão (`[Y/n]`). Pressionar **Enter** aplica os valores padrão automaticamente.
+2. **Configuração Manual:** Digite `n` ou `N` para personalizar os seguintes parâmetros:
+
+| Parâmetro | Descrição | Valores Possíveis | Padrão |
+| :--- | :--- | :--- | :--- |
+| **Total Ticks** | Define a duração da simulação. | Qualquer número inteiro > 0 | `100` |
+| **Rendering Mode** | Define o estilo visual da renderização. | `A` (ASCII Art) ou `C` (Single Characters) | `A` |
+
+### Modos de Renderização
+*   **ASCII Art (`A`):** Modo visual completo. Utiliza sprites de 16x4 caracteres para representar veículos, estradas e semáforos com maior detalhamento visual.
+*   **Single Characters (`C`):** Modo simplificado. Utiliza caracteres únicos para representar os elementos:
+  * `A` - Ambulância
+  * `F` - Carro Veloz
+  * `M` - Carro Médio
+  * `S` - Carro Lento
+  * `#` - Quadro Intransitivo
+  * `.` - Estrada
+  * `r` - Farol Vermelho
+  * `g` - Farol Verde
+  * `y` - Farol Amarelo
+
+> **Dica:** O sistema segue a convenção de CLI de sistemas Linux: pressionar **Enter** sem digitar nada em qualquer prompt aceitará o valor sugerido entre colchetes (ex: `[100]`).
  
 ---
 
