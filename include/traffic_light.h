@@ -82,6 +82,21 @@ typedef enum {
     TRAFFIC_LIGHT_YELLOW,   /**< Estado de transição; nenhum veículo deve avançar.*/
 } TrafficLightColor;
 
+/**
+ * @brief Representa o estado (posição + cor) de uma única luz em um snapshot.
+ */
+typedef struct {
+    Coord position;
+    TrafficLightColor color;
+} TrafficLightSnapshot;
+
+/**
+ * @brief Buffer completo contendo o snapshot de todas as luzes da simulação.
+ */
+typedef struct {
+    TrafficLightSnapshot *lights;
+    int light_count;
+} TrafficLightBuffer;
 
 /** @} */
 
@@ -101,7 +116,7 @@ typedef enum {
  *                      controladas por este semáforo.
  * @return Ponteiro para a nova instância, ou NULL em caso de falha.
  */
-TrafficLight *traffic_light_new(Map *map, int num, Intersection *intersections);
+TrafficLight *traffic_light_new(const Map *map, int num, Intersection *intersections);
 
 /**
  * @brief Destrói a instância do semáforo e libera todos os recursos
@@ -154,5 +169,22 @@ void *traffic_light_update(void *args);
  *         a posição não estiver mapeada.
  */
 TrafficLightColor traffic_light_get_color(TrafficLight *traffic_light, Coord position);
+
+/**
+ * @brief Retorna o último estado validado das luzes (buffer inativo),
+ *        para uso exclusivo da thread de renderização.
+ *
+ * @param traffic_light Ponteiro para o controlador global de semáforos.
+ * @return Ponteiro para o buffer inativo, ou NULL em caso de erro.
+ */
+const TrafficLightBuffer *traffic_light_get_last_state(TrafficLight *traffic_light);
+
+/**
+ * @brief Publica o estado atual das luzes no buffer ativo e troca os
+ *        buffers de forma segura e sincronizada.
+ *
+ * @param traffic_light Ponteiro para o controlador global de semáforos.
+ */
+void traffic_light_swap_buffers(TrafficLight *traffic_light);
 
 #endif // URBAN_TRAFFIC_TRAFFIC_LIGHT_H

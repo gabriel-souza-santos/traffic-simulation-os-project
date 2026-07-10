@@ -88,17 +88,22 @@ struct TrafficLight {
     int phase_ticks;                /**< Contador regressivo da fase atual. */
     size_t last_tick;               /**< Último tick processado.*/
     Axis current_axis;              /**< Eixo atualmente liberado.*/
+
+    TrafficLightBuffer buffers[2];  /**< buffers[0] e buffers[1]: um ativo (escrita), um inativo (leitura). */
+    int active_buffer;              /**< ID do buffer ativo */
 };
 
 static bool is_horizontal(Direction direction);
 
-static void update_targets(TrafficLight *traffic_light, Coord priority);
+static void update_targets(const TrafficLight *traffic_light, Coord priority);
 
 static void transition_light(TrafficLightState *light_state);
 
 static void update_cycle(TrafficLight *traffic_light);
 
-static int find_light(TrafficLight *traffic_light, Coord position);
+static int find_light(const TrafficLight *traffic_light, Coord position);
+
+static void publish_state(const TrafficLight *traffic_light);
 
 /**
  * @brief Cria e inicializa uma nova instância do controlador de semáforos.
@@ -116,6 +121,7 @@ static int find_light(TrafficLight *traffic_light, Coord position);
  * dos veículos nas direções EAST e WEST. Consequentemente, as direções
  * NORTH e SOUTH iniciam fechadas.
 
+ * @param map Mapa da simulação
  * @param num Quantidade de interseções existentes.
  * @param intersections Vetor contendo todas as interseções da malha.
 
@@ -123,7 +129,7 @@ static int find_light(TrafficLight *traffic_light, Coord position);
  * @retval NULL Falha na alocação de memória.
  * @retval TrafficLight* Ponteiro para o controlador inicializado.
  */
-TrafficLight *traffic_light_new(Map *map, const int num, Intersection *intersections) {
+TrafficLight *traffic_light_new(const Map *map, const int num, Intersection *intersections) {
     if (!intersections) {
         LOG("Error: parameter 'intersections' cannot be NULL.");
         return NULL;
@@ -239,6 +245,39 @@ TrafficLight *traffic_light_new(Map *map, const int num, Intersection *intersect
     traffic_light->current_axis = AXIS_HORIZONTAL;
     traffic_light->last_tick = 0;
 
+
+    /* Inicializa o double buffer de renderização.
+     *
+     * Ambos os buffers recebem a posição de cada WaitPoint (que é fixa
+     * durante toda a simulação) e a cor inicial correspondente. O buffer
+     * ativo (índice 0) será o primeiro a ser sobrescrito; o buffer
+     * inativo (índice 1) já nasce com um estado válido para o caso de a
+     * renderização ocorrer antes do primeiro swap. */
+    for (int b = 0; b < 2; b++) {
+        traffic_light->buffers[b].lights =
+            malloc(traffic_light->light_count * sizeof(TrafficLightSnapshot));
+
+        if (traffic_light->buffers[b].lights == NULL) {
+            LOG("Error: failed to allocate memory for render buffer.");
+            for (int k = 0; k < b; k++) {
+                free(traffic_light->buffers[k].lights);
+            }
+            free(traffic_light->lights);
+            pthread_mutex_destroy(&traffic_light->mutex);
+            free(traffic_light);
+            return NULL;
+        }
+
+        traffic_light->buffers[b].light_count = traffic_light->light_count;
+
+        for (int i = 0; i < traffic_light->light_count; i++) {
+            traffic_light->buffers[b].lights[i].position =
+                traffic_light->lights[i].wait_point.position;
+            traffic_light->buffers[b].lights[i].color =
+                traffic_light->lights[i].current;
+        }
+    }
+
     return traffic_light;
 }
 
@@ -270,6 +309,8 @@ void traffic_light_destroy(TrafficLight *traffic_light) {
         return;
     }
 
+    free(traffic_light->buffers[0].lights);
+    free(traffic_light->buffers[1].lights);
     free(traffic_light->lights);
     pthread_mutex_destroy(&traffic_light->mutex);
     free(traffic_light);
@@ -339,6 +380,7 @@ void *traffic_light_update(void *traffic_light_args) {
         }
         pthread_mutex_unlock(&traffic_light->mutex);
 
+        publish_state(traffic_light);
         clock_signal(clock, current_tick);
     }
 
@@ -398,6 +440,56 @@ TrafficLightColor traffic_light_get_color(TrafficLight *traffic_light, const Coo
 }
 
 /**
+ * @brief Troca o buffer ativo de renderização.
+ *
+ * @details
+ * Esta função deve ser chamada exclusivamente pelo módulo Clock, no
+ * ponto de barreira em que todas as threads da simulação (incluindo a
+ * de renderização) já estão sincronizadas. Como não há concorrência
+ * possível nesse instante, a troca é feita sem qualquer mecanismo de
+ * exclusão mútua: apenas o índice do buffer ativo é invertido.
+ *
+ * Após esta chamada, o buffer que acabou de receber a escrita do tick
+ * atual passa a ser o buffer inativo (disponível para leitura pelo
+ * renderizador), e o antigo buffer inativo passa a ser o novo buffer
+ * ativo, pronto para receber a escrita do próximo tick.
+ *
+ * @param traffic_light Ponteiro para o controlador global de semáforos.
+ */
+void traffic_light_swap_buffers(TrafficLight *traffic_light) {
+    if (!traffic_light) {
+        LOG("Error: parameter 'traffic_light' cannot be NULL.");
+        return;
+    }
+
+    traffic_light->active_buffer = 1 - traffic_light->active_buffer;
+}
+
+/**
+ * @brief Retorna o último estado validado das luzes (buffer inativo),
+ *        para uso exclusivo da thread de renderização.
+ *
+ * @details
+ * O buffer retornado corresponde ao estado publicado no tick anterior,
+ * já "congelado" — nenhuma thread está escrevendo nele no momento em
+ * que esta função é chamada, pois essa leitura ocorre na mesma janela
+ * de barreira sincronizada pelo clock em que o swap acontece. Por isso
+ * não é necessário nenhum lock para acessá-lo.
+ *
+ * @param traffic_light Ponteiro para o controlador global de semáforos.
+ * @return Ponteiro constante para o buffer inativo, ou NULL em caso de
+ *         erro.
+ */
+const TrafficLightBuffer *traffic_light_get_last_state(TrafficLight *traffic_light) {
+    if (!traffic_light) {
+        LOG("Error: parameter 'traffic_light' cannot be NULL.");
+        return NULL;
+    }
+
+    return &traffic_light->buffers[1 - traffic_light->active_buffer];
+}
+
+/**
  * @internal
  * @brief Determina se uma direção pertence ao eixo horizontal.
  */
@@ -452,8 +544,9 @@ static bool is_horizontal(const Direction direction) {
  * substituída temporariamente para liberar o eixo correspondente.
  *
  * @param traffic_light Ponteiro para o controlador de semáforos.
+ * @param priority Coodenada de prioridade
  */
-static void update_targets(TrafficLight *traffic_light, Coord priority) {
+static void update_targets(const TrafficLight *traffic_light, const Coord priority) {
     // Define os alvos padrão baseados no ciclo normal da máquina de estados
     for (int i = 0; i < traffic_light->light_count; i++) {
         TrafficLightState *light = &traffic_light->lights[i];
@@ -469,8 +562,8 @@ static void update_targets(TrafficLight *traffic_light, Coord priority) {
     /* Sobreposição de Prioridade (Ambulância)
      * Verifica se existe uma coordenada de prioridade válida emitida pela ambulância.
      * Assume-se que valores válidos são diferentes de NULL_COORD.x / NULL_COORD.y. */
-    bool has_priority_x = priority.x != NULL_COORD.x;
-    bool has_priority_y = priority.y != NULL_COORD.y;
+    const bool has_priority_x = priority.x != NULL_COORD.x;
+    const bool has_priority_y = priority.y != NULL_COORD.y;
 
     if (has_priority_x || has_priority_y) {
         for (int i = 0; i < traffic_light->light_count; i++) {
@@ -643,7 +736,7 @@ static void update_cycle(TrafficLight *traffic_light) {
  * @retval >= 0 Índice da luz encontrada no vetor de luzes.
  * @retval -1 Não existe nenhuma luz associada à coordenada informada.
  */
-static int find_light(TrafficLight *traffic_light, Coord position) {
+static int find_light(const TrafficLight *traffic_light, Coord position) {
     if (traffic_light == NULL) {
         return -1;
     }
@@ -668,4 +761,29 @@ static int find_light(TrafficLight *traffic_light, Coord position) {
     }
 
     return -1;
+}
+
+/**
+ * @internal
+ * @brief Publica o estado atual das luzes no buffer ativo.
+ *
+ * @details
+ * Copia a posição e a cor atual de cada luz para o buffer que está
+ * marcado como ativo (buffers[active_index]). Deve ser chamada dentro
+ * da região protegida pelo mutex principal, após update_cycle, para
+ * garantir que a cópia reflita um estado consistente de lights[].
+ *
+ * Esta função apenas escreve no buffer; a troca de qual buffer está
+ * ativo é feita separadamente por traffic_light_swap_buffers, chamada
+ * pelo clock no ponto de barreira da simulação.
+ *
+ * @param traffic_light Ponteiro para o controlador global de semáforos.
+ */
+static void publish_state(const TrafficLight *traffic_light) {
+    const TrafficLightBuffer *active = &traffic_light->buffers[traffic_light->active_buffer];
+
+    for (int i = 0; i < traffic_light->light_count; i++) {
+        active->lights[i].position = traffic_light->lights[i].wait_point.position;
+        active->lights[i].color = traffic_light->lights[i].current;
+    }
 }
