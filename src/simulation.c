@@ -24,6 +24,10 @@
 #define CAR_MEDIUM_PATH "res/car-medium.txt"
 #define CAR_SLOW_PATH   "res/car-slow.txt"
 
+#define PATH_LIGHT_RED      "res/light-red.txt"
+#define PATH_LIGHT_GREEN    "res/light-green.txt"
+#define PATH_LIGHT_YELLOW   "res/light-yellow.txt"
+
 #define TILE_ROAD_PATH    "res/tile-road.txt"
 #define TILE_BLOCKED_PATH "res/tile-blocked.txt"
 
@@ -78,6 +82,10 @@ Simulation *simulation_new(void) {
 
     render_load_tile_asset_multi(simulation->render, TILE_ROAD_PATH, roads, 6);
     render_load_tile_asset(simulation->render, TILE_BLOCKED, TILE_BLOCKED_PATH);
+
+    render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_RED, PATH_LIGHT_RED);
+    render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_GREEN, PATH_LIGHT_GREEN);
+    render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_YELLOW, PATH_LIGHT_YELLOW);
 
 
     /* Inicialização Hardcoded para garantir a lógica dos semáforos. Implementar um algorítmo que
@@ -195,6 +203,7 @@ void simulation_run(Simulation *simulation) {
         .map = simulation->map,
         .vehicles = simulation->vehicles,
         .vehicle_count = VEHICLE_COUNT,
+        .traffic_light = simulation->traffic_light,
     };
 
     AnalyserArgs analyser_args = {
@@ -206,6 +215,7 @@ void simulation_run(Simulation *simulation) {
     ClockArgs clock_args = {
         .clock = simulation->clock,
         .analyser = simulation->analyser,
+        .traffic_light = simulation->traffic_light,
     };
 
     TrafficLightArgs traffic_light_args = {
