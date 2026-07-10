@@ -13,7 +13,7 @@ e prevenção de deadlocks.
  ```
 
 ### 2. Como rodar o projeto
-Após ter instalado o WSL, no terminal:
+Após a instalção, no terminal ou powershell digite:
 ```
 wsl
 ```
@@ -37,7 +37,7 @@ cmake -S . build && cmake --build build && ./build/bin/urban_traffic
 │   └── 📄 vehicle.h       # Modelagem, propriedades e ciclo de vida dos veículos
 │
 ├── 📁 out
-│    └── 📄 debug.log      # Arquivo em caso de erros
+│    └── 📄 debug.log               # Arquivo em caso de erros
 │
 ├── 📁 res
 │   └── 📁 Data                     # Diretório da reepresentação visual do mapa
@@ -50,9 +50,9 @@ cmake -S . build && cmake --build build && ./build/bin/urban_traffic
 │    │   ├── 📄 light-red.txt       # Representação visual do semaforo vermelho
 │    │   └── 📄 light-yellow.txt    # Representação visual do semaforo amarelo
 │    │
-│    └── 📁 Vehicle                 # Diretório da reepresentação visual dos veículos
+│    └── 📁 Vehicle                      # Diretório da reepresentação visual dos veículos
 │         ├── 📄 ambulance-right.txt     # Representação visual da ambulância (prioridade)
-│         ├── 📄 ambulance-leftt.txt     # Representação visual da ambulância (prioridade)
+│         ├── 📄 ambulance-left.txt     # Representação visual da ambulância (prioridade)
 │         ├── 📄 car-fast-right.txt      # Representação visual do carro na direita (alta velocidade)
 │         ├── 📄 car-fast-left.txt       # Representação visual do carro na esquerda (alta velocidade)
 │         ├── 📄 car-medium-right.txt    # Representação visual do carro na direita (média velocidade)
