@@ -160,6 +160,12 @@ void *clock_update(void *clock_args) {
             TRY(pthread_cond_broadcast(&clock->cond_workers));
         }
         TRY(pthread_mutex_unlock(&clock->mutex));
+
+        struct timespec sleep_time = {
+            .tv_sec = 0,
+            .tv_nsec = 750000000L, // (0.75 s)
+        };
+        nanosleep(&sleep_time, NULL);
     }
 
     return NULL;
