@@ -254,3 +254,8 @@ Isso reduz o número de conflitos que precisam ser resolvidos pelo analisador.
 | José Dhonatan Fernandes de Almeida | Criação do mapa, funções auxiliares de veículo, implementação do semáforo sem espera ocupada. |
 | Letícia Maria dos Santos Dias | Implementação dos veículos, issues e divisão de responsabilidades, relatório técnico e documentação. |
 | Sarah Mendes Teles | Implementação da ambulância, sistema de prioridade e estratégias de prevenção de deadlocks. |
+
+
+## Créditos e Atribuições
+
+As artes ASCII utilizadas para a representação visual dos veículos e cenários deste projeto (no modo de renderização `A`) foram coletadas e adaptadas a partir do acervo do site [ASCII Art Archive](https://www.asciiart.eu/).
