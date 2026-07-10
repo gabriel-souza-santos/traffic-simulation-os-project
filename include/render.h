@@ -178,4 +178,52 @@ void render_load_vehicle_asset_all_directions(Render *render,
  */
 void render_load_traffic_light_asset(Render *render, TrafficLightColor color, const char *file_name);
 
+
+/**
+ * @brief Carrega a sprite de um tile específico diretamente a partir de uma string.
+ *
+ * @param render Ponteiro para o renderizador.
+ * @param type Tipo do tile que receberá a sprite.
+ * @param sprite_data String contendo o desenho ASCII.
+ */
+void render_load_tile_asset_from_string(Render *render, TileType type, const char *sprite_data);
+
+/**
+ * @brief Carrega a mesma sprite para múltiplos tipos de tiles simultaneamente a partir de uma string.
+ *
+ * @param render Ponteiro para o renderizador.
+ * @param sprite_data String contendo o desenho ASCII.
+ * @param types Array contendo os tipos de tiles que receberão a sprite.
+ * @param count Quantidade de elementos no array 'types'.
+ */
+void render_load_tile_asset_multi_from_string(Render *render, const char *sprite_data, const TileType *types, int count);
+
+/**
+ * @brief Carrega a sprite de um veículo para uma direção específica a partir de uma string.
+ *
+ * @param render Ponteiro para o renderizador.
+ * @param type Tipo do veículo.
+ * @param direction Direção correspondente à sprite.
+ * @param sprite_data String contendo o desenho ASCII.
+ */
+void render_load_vehicle_asset_from_string(Render *render, VehicleType type, Direction direction, const char *sprite_data);
+
+/**
+ * @brief Carrega a mesma sprite para todas as direções de um tipo de veículo a partir de uma string.
+ *
+ * @param render Ponteiro para o renderizador.
+ * @param type Tipo do veículo.
+ * @param sprite_data String contendo o desenho ASCII.
+ */
+void render_load_vehicle_asset_all_directions_from_string(Render *render, VehicleType type, const char *sprite_data);
+
+/**
+ * @brief Carrega a sprite de um estado (cor) do semáforo a partir de uma string.
+ *
+ * @param render Ponteiro para o renderizador.
+ * @param color Cor do semáforo que receberá a sprite.
+ * @param sprite_data String contendo o desenho ASCII.
+ */
+void render_load_traffic_light_asset_from_string(Render *render, TrafficLightColor color, const char *sprite_data);
+
 #endif //URBAN_TRAFFIC_RENDER_H

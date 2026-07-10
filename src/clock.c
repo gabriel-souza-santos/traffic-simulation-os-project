@@ -26,6 +26,7 @@
  */
 struct Clock {
     size_t current_tick;        /**< Tick atual da simulação. Escrito apenas por clock_update, sob mutex. */
+    size_t total_ticks;         /**< Quantidade total de ticks da simulação. */
     size_t completed_count;     /**< Quantidade de trabalhadores que já sinalizaram conclusão do tick atual. */
     size_t total_workers;       /**< Quantidade total de trabalhadores. */
     pthread_mutex_t mutex;      /**< Protege current_tick e completed_count. */
@@ -42,9 +43,14 @@ struct Clock {
  * @c pthread_*_init, encerrando o programa (via @c TRY) em caso de
  * falha de alocação ou inicialização.
  */
-Clock *clock_new(const size_t total_workers) {
+Clock *clock_new(const size_t total_workers, const size_t total_ticks) {
     if (total_workers == 0) {
         LOG("Error: parameter 'total_workers' cannot be zero.");
+        return NULL;
+    }
+
+    if (total_ticks == 0) {
+        LOG("Error: parameter 'total_ticks' cannot be zero.");
         return NULL;
     }
 
@@ -59,6 +65,7 @@ Clock *clock_new(const size_t total_workers) {
     TRY(pthread_cond_init(&clock->cond_clock, NULL));
     TRY(pthread_cond_init(&clock->cond_workers, NULL));
 
+    clock->total_ticks = total_ticks;
     clock->total_workers = total_workers;
     clock->current_tick = 0;
     clock->completed_count = 0;
@@ -105,6 +112,16 @@ size_t clock_get_tick(Clock *clock) {
 }
 
 
+size_t clock_get_total_ticks(Clock *clock) {
+    if (!clock) {
+        LOG("Error: parameter 'clock' is NULL.");
+        return 0;
+    }
+
+    return clock->total_ticks;
+}
+
+
 /**
  * @internal
  * @brief Implementação do laço principal da thread do relógio.
@@ -145,7 +162,7 @@ void *clock_update(void *clock_args) {
     Analyser *analyser = args->analyser;
     TrafficLight *traffic_light = args->traffic_light;
 
-    for (int t = 0; t < TICKS; t++) {
+    for (size_t t = 0; t < clock->total_ticks; t++) {
         TRY(pthread_mutex_lock(&clock->mutex));
         {
             while (clock->completed_count < clock->total_workers) {
