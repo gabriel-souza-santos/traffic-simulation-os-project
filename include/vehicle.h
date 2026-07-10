@@ -15,6 +15,9 @@
 #include "clock.h"
 #include "map.h"
 
+// Forward declaration
+typedef struct TrafficLight TrafficLight;
+
 /** @brief Quantidade de veículos rodando simultaneamente na simulação. */
 #define VEHICLE_COUNT 10 //valores permitidos: [10-20]
 
@@ -76,6 +79,7 @@ typedef struct {
     Analyser *analyser;
     Clock *clock;
     Map *map;
+    TrafficLight *traffic_light;
 } SharedVehicleArgs;
 
 /**

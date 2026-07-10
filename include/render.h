@@ -21,6 +21,8 @@
 #include "clock.h"
 #include "map.h"
 #include "vehicle.h"
+#include "traffic_light.h"
+
 
 /** @name Estruturas de dados */
 /** @{ */
@@ -42,10 +44,10 @@ typedef struct {
     Analyser *analyser;
     Render *render;         /**< Instância do renderizador. */
     Map *map;               /**< Mapa da simulação a ser renderizado. */
-    Clock *clock;           /**< Relógio global, usado para sincronizar a
-                                 renderização com os ticks da simulação. */
+    Clock *clock;           /**< Relógio global, usado para sincronizar a renderização. */
     Vehicle **vehicles;     /**< Array de ponteiros para os veículos ativos. */
     size_t vehicle_count;   /**< Número de veículos no array. */
+    TrafficLight *traffic_light;
 } RenderArgs;
 
 /** @} */
@@ -168,6 +170,15 @@ void render_load_tile_asset_multi(Render *render,
  */
 void render_load_vehicle_asset_all_directions(Render *render,
     VehicleType type, const char *file_name);
+
+/**
+ * @brief Carrega o asset visual associado a uma cor de semáforo.
+ *
+ * @param render Ponteiro para o renderizador.
+ * @param color Cor do semáforo (RED, GREEN ou YELLOW).
+ * @param file_name Caminho do arquivo de asset a ser carregado.
+ */
+void render_load_traffic_light_asset(Render *render, TrafficLightColor color, const char *file_name);
 
 /** @} */
 

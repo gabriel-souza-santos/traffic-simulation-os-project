@@ -41,9 +41,9 @@ void *analyser_update(void *analyser_args);
 
 void analyser_request(Analyser *analyser, int id, MovementRequest request);
 
-RequestStatus analyser_get_status(Analyser *analyser, int id);
-
 MovementRequest *analyser_get_previous_requests(Analyser *analyser);
+
+RequestStatus analyser_get_status(Analyser *analyser, int id);
 
 void analyser_swap_buffers(Analyser *analyser);
 

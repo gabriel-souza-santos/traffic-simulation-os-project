@@ -19,6 +19,16 @@
 #include "map.h"
 #include "vehicle.h"
 
+#include "traffic_light.h"
+
+/**
+ * @internal
+ * @brief Usada para manter rastreio e garantir controle de prioridade da ambulância.
+ */
+Coord g_priority_coord = NULL_COORD;
+pthread_mutex_t g_priority_mutex = PTHREAD_MUTEX_INITIALIZER;
+bool g_was_destroyed = false;
+
 /**
  * @internal
  * @brief Representa o estado de um veículo num dado instante da simulação.
@@ -43,11 +53,19 @@ struct Vehicle {
  *         uma via com sentido definido (ex: TILE_ROAD, TILE_WAIT, TILE_BLOCKED).
  */
 static Direction find_direction_from_tile(const TileType tile_type) {
+    const bool should_turn = rand() % 2 == 0;
+
     switch (tile_type) {
         case TILE_ROAD_UP:      return DIRECTION_UP;
         case TILE_ROAD_DOWN:    return DIRECTION_DOWN;
         case TILE_ROAD_LEFT:    return DIRECTION_LEFT;
         case TILE_ROAD_RIGHT:   return DIRECTION_RIGHT;
+
+        case TILE_TURN_UP:      return  should_turn? DIRECTION_UP    : DIRECTION_NONE;
+        case TILE_TURN_DOWN:    return  should_turn? DIRECTION_DOWN  : DIRECTION_NONE;
+        case TILE_TURN_LEFT:    return  should_turn? DIRECTION_LEFT  : DIRECTION_NONE;
+        case TILE_TURN_RIGHT:   return  should_turn? DIRECTION_RIGHT : DIRECTION_NONE;
+
         default:                return DIRECTION_NONE;
     }
 }
@@ -155,39 +173,6 @@ static bool is_adjacent(const Map *map, const Vehicle *vehicle, const Coord targ
     return diff_x + diff_y == 1;
 }
 
-/**
- * @internal
- * @brief Projeta a trajetória frontal do veículo e checa se há um obstáculo
- * móvel imediatamente à frente.
- *
- * @param map Mapa usado para consultar ocupação da célula frontal.
- * @param vehicle Veículo cuja direção atual define a célula a ser checada.
- *
- * @return true
- * - Se a célula imediatamente à frente (com base na direção atual do veículo)
- * estiver ocupada por outro veículo (`is_occupied == true`).
- * @return false
- * - Se o ponteiro do veículo for inválido (`NULL`).
- * - Se o veículo estiver sem direção mapeada ou parado (`default` no switch).
- * - Se a célula à frente estiver fora das dimensões limítrofes do mapa.
- * - Se a célula à frente estiver totalmente desocupada.
- *
- * @note Assim como `is_cell_available`, esta função faz uso seguro de exclusão
- * mútua (`lock`) e pode abortar o programa via macro `TRY` em caso de falha de
- * concorrência com pthreads.
- */
-static bool has_vehicle_ahead(Map *map, const Vehicle *vehicle) {
-    if (!vehicle || !map) return false;
-
-    const Coord next_position = find_next_position(vehicle);
-
-    // Aborta caso a projeção saia dos limites físicos do mapa da simulação
-    if (map_is_within_bounds(map, next_position) == false) {
-        return false;
-    }
-
-    return map_is_occupied(map, next_position);
-}
 
 /**
  * @internal
@@ -239,37 +224,36 @@ static bool is_overtaking(const Map *map, const Vehicle *vehicle, const Coord ta
     return false;
 }
 
-/**
- * @internal
- * @brief Orquestra a tentativa de deslocamento de um veículo no mapa.
- *
- * Valida, em sequência: permissão de movimento no tick atual (velocidade),
- * adjacência do destino, e regras de ultrapassagem. Se todas as validações
- * passarem, delega a transferência atômica de ocupação para
- * map_transfer_occupant, que internamente garante exclusão mútua via o
- * mutex global do mapa.
- *
- * @note A prevenção de deadlock neste módulo decorre de map_transfer_occupant
- *       usar um único mutex global (sem aquisição de múltiplos locks), não de
- *       ordenação de locks por endereço de memória.
- *
- * @param map Mapa onde o veículo está inserido.
- * @param vehicle Veículo que tentará se mover.
- * @param target Coordenada de destino pretendida.
- * @param clock Relógio global, usado para validar a velocidade do veículo.
- * @return true Se o movimento foi validado e executado com sucesso.
- * @return false Se qualquer validação falhar ou a célula destino estiver indisponível.
- */
-static bool try_update_position(Map *map, Vehicle *vehicle,
-    const Coord target, const Clock *clock) {
+void set_priority_coord(Vehicle *ambulance) {
+    if (!ambulance) {
+        LOG("Error: parameter 'ambulance' cannot be NULL.");
+        return;
+    }
 
-    if (vehicle == NULL || clock == NULL)
-        return false;
+    if (ambulance->type != AMBULANCE) {
+        LOG("Error: vehicle must be an ambulance.");
+        return;
+    }
 
+    TRY(pthread_mutex_lock(&g_priority_mutex));
+    {
+        g_priority_coord = NULL_COORD;
+        switch (ambulance->direction) {
+            case DIRECTION_LEFT:
+            case DIRECTION_RIGHT:
+                g_priority_coord.y = ambulance->position.y;
+                break;
 
+            case DIRECTION_UP:
+            case DIRECTION_DOWN:
+                g_priority_coord.x = ambulance->position.x;
+                break;
 
-    vehicle->position = target;
-    return true;
+            default:
+                break;
+        }
+    }
+    TRY(pthread_mutex_unlock(&g_priority_mutex));
 }
 
 /*
@@ -354,8 +338,15 @@ Vehicle *vehicle_new(Map *map, const int id) {
  * @brief Implementação da liberação dos recursos do veículo.
  */
 void vehicle_destroy(Vehicle *vehicle) {
-    // Libera a memória alocada para o contexto do veículo.
-    LOG_IF(vehicle == NULL, "Warning: parameter 'vehicle' is NULL on destroy.");
+    if (!vehicle) {
+        LOG("Error: parameter 'vehicle' cannot be NULL.");
+        return;
+    }
+
+    if (vehicle->type == AMBULANCE) {
+        TRY(pthread_mutex_destroy(&g_priority_mutex));
+    }
+
     free(vehicle);
 }
 
@@ -363,6 +354,7 @@ void vehicle_destroy(Vehicle *vehicle) {
 void *vehicle_update(void *vehicle_args) {
     if (!vehicle_args) {
         LOG("Error: parameter 'vehicle' is NULL.");
+
         return NULL;
     }
 
@@ -388,24 +380,28 @@ void *vehicle_update(void *vehicle_args) {
         return NULL;
     }
 
+    if (!args->shared->traffic_light) {
+        LOG("Error: thread argument 'shared->traffic_light' is NULL");
+        return NULL;
+    }
+
     Analyser *analyser = args->shared->analyser;
     Clock *clock = args->shared->clock;
     Map *map = args->shared->map;
-
+    TrafficLight *traffic_light = args->shared->traffic_light;
     Vehicle *vehicle = args->vehicle;
-
     const int id = vehicle->id;
 
     for (int t = 0; t < TICKS; t++) {
         const size_t current_tick = clock_get_tick(clock);
 
-        // Coordenada atual (origem)
-        const Coord current_position = vehicle->position;
-        Coord target_position = current_position;
+        Coord target_position = vehicle->position;
 
         // Verifica se o veículo DEVE e PODE tentar se mover neste tick
         if (should_move_now(vehicle, clock)) {
             const Coord intended_target = find_next_position(vehicle);
+            const TileType intended_type = map_get_tile_type(map, intended_target);
+            const TrafficLightColor light_color = traffic_light_get_color(traffic_light, intended_target);
 
             // Validações locais (Física e Fronteiras)
             if (!map_is_within_bounds(map, intended_target)) {
@@ -417,15 +413,18 @@ void *vehicle_update(void *vehicle_args) {
             else if (is_overtaking(map, vehicle, intended_target)) {
                 LOG("Info: vehicle(%d) detected forbidden overtaking scheme.", id);
             }
+            else if (intended_type == TILE_WAIT && light_color != TRAFFIC_LIGHT_GREEN) {
+            }
             else {
+                /* Destino livre ou semáforo verde: concede a intenção de movimento */
                 target_position = intended_target;
             }
         }
 
         // Monta a requisição e envia ao Analisador
         const MovementRequest request = {
-            .from = current_position,
-            .to = target_position,
+            .from   = vehicle->position,
+            .to     = target_position,
             .status = REQUEST_PENDING,
         };
 
@@ -433,7 +432,12 @@ void *vehicle_update(void *vehicle_args) {
         analyser_request(analyser, id, request);
         const RequestStatus verdict = analyser_get_status(analyser, id);
 
-        if (verdict == REQUEST_APPROVED && (current_position.x != target_position.x || current_position.y != target_position.y)) {
+        const bool has_changed_position = (
+            vehicle->position.x != target_position.x ||
+            vehicle->position.y != target_position.y
+        );
+
+        if (verdict == REQUEST_APPROVED && has_changed_position) {
             vehicle->position = target_position;
 
             // Atualiza a direção com base no novo tile
@@ -443,10 +447,11 @@ void *vehicle_update(void *vehicle_args) {
             if (new_direction != DIRECTION_NONE) {
                 vehicle->direction = new_direction;
             }
-            // else {
-            //     LOG("Warning: vehicle(%d) does not have a defined direction at x:%d, y:%d.",
-            //         id, vehicle->position.x, vehicle->position.y);
-            // }
+
+            // Atualiza a coordenada de prioridade da ambulância
+            if (vehicle->type == AMBULANCE) {
+                set_priority_coord(vehicle);
+            }
         }
 
         clock_signal(clock, current_tick);
@@ -456,29 +461,35 @@ void *vehicle_update(void *vehicle_args) {
 }
 
 Coord vehicle_get_priority_coord(void) {
-  // TODO
+    Coord priority;
+    TRY(pthread_mutex_lock(&g_priority_mutex));
+    {
+        priority = g_priority_coord;
+    }
+    TRY(pthread_mutex_unlock(&g_priority_mutex));
+    return priority;
 }
 
 Coord vehicle_get_position(const Vehicle *vehicle) {
-  if (vehicle == NULL) {
-    return NULL_COORD;
-  }
+    if (vehicle == NULL) {
+        return NULL_COORD;
+    }
 
-  return vehicle->position;
+    return vehicle->position;
 }
 
 VehicleType vehicle_get_type(const Vehicle *vehicle) {
-  if (vehicle == NULL) {
-    return NO_VEHICLE;
-  }
+    if (vehicle == NULL) {
+        return NO_VEHICLE;
+    }
 
-  return vehicle->type;
+    return vehicle->type;
 }
 
 Direction vehicle_get_direction(const Vehicle *vehicle) {
-  if (vehicle == NULL) {
-    return DIRECTION_NONE;
-  }
+    if (vehicle == NULL) {
+        return DIRECTION_NONE;
+    }
 
-  return vehicle->direction;
+    return vehicle->direction;
 }

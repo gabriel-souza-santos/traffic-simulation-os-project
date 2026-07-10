@@ -14,6 +14,7 @@
 #include "vehicle.h"
 #include "map.h"
 #include "debug.h"
+#include "traffic_light.h"
 
 /**
  * @internal
@@ -25,6 +26,7 @@ struct Render {
 
     uint8_t *vehicle_assets[VEHICLE_TYPE_COUNT - 1][DIRECTION_COUNT - 1];
     uint8_t *tile_assets[TILE_TYPE_COUNT];
+    uint8_t *traffic_light_assets[3]; /* RED, GREEN, YELLOW. */
 
     char *buffer; /**< Buffer linear string (com terminação '\0') para renderização estável */
 
@@ -47,9 +49,32 @@ static int tile_type_to_index(const TileType type) {
         case TILE_ROAD_DOWN:  return 2;
         case TILE_ROAD_LEFT:  return 3;
         case TILE_ROAD_RIGHT: return 4;
-        case TILE_ROAD:       return 5;
-        case TILE_WAIT:       return 6;
+        case TILE_TURN_UP:    return 5;
+        case TILE_TURN_DOWN:  return 6;
+        case TILE_TURN_LEFT:  return 7;
+        case TILE_TURN_RIGHT: return 8;
+        case TILE_ROAD:       return 9;
+        case TILE_WAIT:       return 10;
         default:              return -1;
+    }
+}
+
+/**
+ * @internal
+ * @brief Mapeia uma TrafficLightColor para um índice consecutivo no array
+ *        traffic_light_assets.
+ *
+ * @details
+ * TRAFFIC_LIGHT_NONE não possui asset próprio: a ausência de semáforo
+ * significa simplesmente que nenhuma sobreposição deve ser desenhada,
+ * por isso não recebe índice válido.
+ */
+static int traffic_light_color_to_index(const TrafficLightColor color) {
+    switch (color) {
+        case TRAFFIC_LIGHT_RED:    return 0;
+        case TRAFFIC_LIGHT_GREEN:  return 1;
+        case TRAFFIC_LIGHT_YELLOW: return 2;
+        default:                   return -1;
     }
 }
 
@@ -189,6 +214,7 @@ Render *render_new(const Map *map, const size_t tile_width, const size_t tile_he
 
     memset(render->tile_assets, 0, sizeof(render->tile_assets));
     memset(render->vehicle_assets, 0, sizeof(render->vehicle_assets));
+    memset(render->traffic_light_assets, 0, sizeof(render->traffic_light_assets));
 
     return render;
 }
@@ -200,6 +226,10 @@ void render_destroy(Render *render) {
 
     for (int i = 0; i < TILE_TYPE_COUNT; i++) {
         free(render->tile_assets[i]);
+    }
+
+    for (int i = 0; i < 3; i++) {
+        free(render->traffic_light_assets[i]);
     }
 
     for (int i = 0; i < VEHICLE_TYPE_COUNT - 1; i++) {
@@ -284,6 +314,19 @@ void render_load_vehicle_asset_all_directions(Render *render, const VehicleType 
     free(source);
 }
 
+void render_load_traffic_light_asset(Render *render, const TrafficLightColor color, const char *file_name) {
+    if (!render || !file_name) return;
+
+    const int mapped_index = traffic_light_color_to_index(color);
+    if (mapped_index < 0) return;
+
+    uint8_t *asset = load_asset_from_file(file_name, render->tile_width, render->tile_height);
+    if (!asset) return;
+
+    free(render->traffic_light_assets[mapped_index]);
+    render->traffic_light_assets[mapped_index] = asset;
+}
+
 /**
  * @brief Loop principal da Thread do Renderizador (Modo Simples Garantido).
  */
@@ -315,10 +358,16 @@ void *render_update(void *render_args) {
         return NULL;
     }
 
+    if (!args->traffic_light) {
+        LOG("Error: thread argument 'traffic_light' is NULL.");
+        return NULL;
+    }
+
     Clock *clock = args->clock;
     Map *map = args->map;
     Render *render = args->render;
     Vehicle **vehicles = args->vehicles;
+    TrafficLight *traffic_light = args->traffic_light;
 
     const size_t map_width  = map_get_width(map);
     const size_t map_height = map_get_height(map);
@@ -345,6 +394,31 @@ void *render_update(void *render_args) {
             }
         }
 
+        /* Sobreposição: aplica o estado (já validado) dos semáforos por
+         * cima das células de espera correspondentes. O buffer retornado
+         * é o "inativo" do double buffer do traffic_light, ou seja, um
+         * snapshot consistente e congelado do tick anterior. */
+        const TrafficLightBuffer *light_state = traffic_light_get_last_state(traffic_light);
+
+        if (light_state) {
+            for (int i = 0; i < light_state->light_count; i++) {
+                const TrafficLightSnapshot snapshot = light_state->lights[i];
+                const int light_index = traffic_light_color_to_index(snapshot.color);
+
+                const uint8_t *light_asset = light_index >= 0
+                    ? render->traffic_light_assets[light_index]
+                    : NULL;
+
+                /* Só sobrescreve o tile se houver um asset de fato
+                 * carregado para essa cor. Caso contrário, mantemos o
+                 * tile de estrada (TILE_WAIT) já desenhado — evitando
+                 * apagar a célula com espaços em branco. */
+                if (light_asset && map_is_within_bounds(map, snapshot.position)) {
+                    render_write_tile(render, (size_t)snapshot.position.x, (size_t)snapshot.position.y, light_asset);
+                }
+            }
+        }
+
         /* Sobreposição: Insere TODOS os veículos ativos nas posições atuais */
         for (int i = 0; i < VEHICLE_COUNT; i++) {
             const Coord position = vehicle_get_position(vehicles[i]);
@@ -359,11 +433,26 @@ void *render_update(void *render_args) {
             }
         }
 
-        /* Flush Determinístico: Limpa o terminal, descarrega a string e sincroniza */
+
         if (system("clear") == 0) {
             printf("Tick: %zu\n", current_tick);
+
+            const Coord priority= vehicle_get_priority_coord();
+            if (priority.x == NULL_COORD.x && priority.y == NULL_COORD.y) {
+                printf("Priority X: ---\nPriority Y: ---\n");
+            }
+            else if (priority.x != NULL_COORD.x && priority.y != NULL_COORD.y) {
+                printf("Priority X: %d\nPriority Y: %d\n", priority.x, priority.y);
+            }
+            else if (priority.x != NULL_COORD.x) {
+                printf("Priority X: %d\nPriority Y: ---\n", priority.x);
+            }
+            else {
+                printf("Priority X: ---\nPriority Y: %d\n", priority.y);
+            }
+
             printf("%s", render->buffer);
-            fflush(stdout);
+            fflush(stdout); // Limpa o terminal, descarrega a string e sincroniza
         }
 
         clock_signal(clock, current_tick);
