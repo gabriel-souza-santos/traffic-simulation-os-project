@@ -47,6 +47,7 @@ struct Simulation {
 };
 
 Simulation *simulation_new(void) {
+    srand(time(NULL));
     DEBUG_INIT("out/debug.log");
 
     Simulation *simulation = malloc(sizeof(Simulation));
@@ -71,16 +72,13 @@ Simulation *simulation_new(void) {
     render_load_vehicle_asset_all_directions(simulation->render, CAR_SLOW, CAR_SLOW_PATH);
     render_load_vehicle_asset_all_directions(simulation->render, CAR_MEDIUM, CAR_MEDIUM_PATH);
 
-    const TileType roads[6] = {
+    const TileType roads[9] = {
+        TILE_ROAD_UP, TILE_ROAD_DOWN, TILE_ROAD_LEFT, TILE_ROAD_RIGHT,
+        TILE_TURN_UP, TILE_TURN_DOWN, TILE_TURN_LEFT, TILE_TURN_RIGHT,
         TILE_ROAD,
-        TILE_ROAD_UP,
-        TILE_ROAD_DOWN,
-        TILE_ROAD_LEFT,
-        TILE_ROAD_RIGHT,
-        TILE_WAIT,
     };
 
-    render_load_tile_asset_multi(simulation->render, TILE_ROAD_PATH, roads, 6);
+    render_load_tile_asset_multi(simulation->render, TILE_ROAD_PATH, roads, 9);
     render_load_tile_asset(simulation->render, TILE_BLOCKED, TILE_BLOCKED_PATH);
 
     render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_RED, PATH_LIGHT_RED);
@@ -102,7 +100,7 @@ Simulation *simulation_new(void) {
     };
 
     WaitPoint intersection3[4] = {
-        { .position = {3, 2}, .direction = DIRECTION_DOWN },
+        { .position = {3, 2 }, .direction = DIRECTION_DOWN },
         { .position = {5, 3 }, .direction = DIRECTION_LEFT },
         { .position = {2, 4 }, .direction = DIRECTION_RIGHT },
         { .position = {4, 5 }, .direction = DIRECTION_UP },

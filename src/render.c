@@ -49,8 +49,12 @@ static int tile_type_to_index(const TileType type) {
         case TILE_ROAD_DOWN:  return 2;
         case TILE_ROAD_LEFT:  return 3;
         case TILE_ROAD_RIGHT: return 4;
-        case TILE_ROAD:       return 5;
-        case TILE_WAIT:       return 6;
+        case TILE_TURN_UP:    return 5;
+        case TILE_TURN_DOWN:  return 6;
+        case TILE_TURN_LEFT:  return 7;
+        case TILE_TURN_RIGHT: return 8;
+        case TILE_ROAD:       return 9;
+        case TILE_WAIT:       return 10;
         default:              return -1;
     }
 }
