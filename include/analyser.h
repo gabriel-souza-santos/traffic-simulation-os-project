@@ -43,6 +43,8 @@ void analyser_request(Analyser *analyser, int id, MovementRequest request);
 
 MovementRequest *analyser_get_previous_requests(Analyser *analyser);
 
+RequestStatus analyser_get_status(Analyser *analyser, int id);
+
 void analyser_swap_buffers(Analyser *analyser);
 
 #endif //URBAN_TRAFFIC_ANALYSER_H
