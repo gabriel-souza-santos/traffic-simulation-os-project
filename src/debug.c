@@ -14,6 +14,7 @@
 static FILE *log_target = NULL;
 
 /**
+ * @internal
  * @brief Abre o arquivo de log dedicado. Chame uma vez no início do main,
  * antes de render_init_terminal() (que entra no alt-screen buffer).
  * Se falhar, debug_log() cai de volta para stderr automaticamente.
@@ -26,6 +27,7 @@ void debug_log_init(const char *file_name) {
 }
 
 /**
+ * @internal
  * @brief Fecha o arquivo de log, se aberto. Chame no fim do main,
  * de preferência depois de render_reset_terminal().
  */
@@ -36,6 +38,10 @@ void debug_log_close(void) {
     }
 }
 
+/**
+ * @internal
+ * @brief Escreve a mensagem no arquivo de log ou stderr
+ */
 void debug_log(
     const char *file,
     const int  line,

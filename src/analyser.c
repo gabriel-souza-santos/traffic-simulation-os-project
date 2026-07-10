@@ -19,6 +19,20 @@
 #include "map.h"
 #include "vehicle.h"
 
+
+/**
+ * @internal
+ * @brief Estado interno do analisador e mecanismos de concorrência.
+ *
+ * Utiliza a técnica de Double Buffering para as requisições:
+ * - O buffer 'active_request' recebe os pedidos do tick atual.
+ * - O buffer inativo guarda a história do tick anterior para leitura sem lock (ex: renderizador).
+ *
+ * A concorrência é tratada de forma granular: cada veículo possui seu próprio
+ * slot de mutex e variável de condição (`slot_mutex`, `slot_cond`). Isso evita
+ * disputa de acesso (lock contention) quando dezenas de veículos tentam submeter
+ * suas requisições simultaneamente.
+ */
 struct Analyser {
     MovementRequest requests[2][VEHICLE_COUNT];
 
@@ -168,11 +182,14 @@ void *analyser_update(void *analyser_args) {
     const size_t map_width = map_get_width(map);
     const size_t map_height = map_get_height(map);
 
-    /*
-     * Controle de conflito de destino (criado via VLA).
-     * Nota: As dimensões do mapa são fixadas para um limite de 255 x 255,
-     * e operando com valores bem menores (para garantir a visualização no
-     * terminal) tornado improvável um possível stack overflow.
+    /**
+     * @internal
+     * Matriz de resolução de conflitos de destino (VLA - Variable Length Array).
+     * * Mapeia fisicamente o grid para garantir que dois ou mais veículos
+     * não tentem ocupar o mesmo (x,y) simultaneamente no mesmo tick.
+     * * @note Alocado na stack (Pilha). Como as dimensões são contidas (ex: max 255x255)
+     * e um bool ocupa 1 byte, o consumo máximo é de ~65KB, o que é perfeitamente
+     * seguro contra stack overflows em threads POSIX padrões (normalmente 2MB a 8MB).
      */
     bool destinations[map_width][map_height];
 
@@ -275,60 +292,4 @@ MovementRequest *analyser_get_previous_requests(Analyser *analyser) {
     return analyser->requests[inactive];
 }
 
-/*
- * Ao validar o pedido, chama a função:
- * map_transfer_occupant(map, request.from, request.to);
- * para atualizar o mapa
- */
 
-
-/*
- * ============================================================================
- *
- * COMO FUNCIONA
- * -------------
- * Cada veículo tem um slot exclusivo na tabela de requisições
- *
- * Por exemplo:
- * veículo (id=0) --> slot[0]
- * veículo (id=1) --> slot[1]
- * veículo (id=2) --> slot[2]
- * ...
- *
- * como cada um tem seu slot, a memória não é compartilhada
- *
- * A cada tick:
- *
- *   1. O veículo escreve sua intenção de movimento (origem --> destino) no slot
- *      e dorme.
- *   2. O analisador varre a tabela, aprova ou nega cada requisição, e acorda
- *      os veículos individualmente.
- *   3. Cada veículo acorda, lê o resultado e executa ou não o movimento.
- *
- *
- *
- *
- *
- * RISCOS DE DEADLOCK E PREVENÇÕES ATUAIS
- * ----------------------------------------
- *
- * Risco 1 — Lock duplo em ordem inversa (usar o mutex do slot e o mutex do analisador)
- *
- *   Problema:  o veículo adquire adquire o mutex do seu slot e depois tenta adquirir
- *              o mutex do analisador. Se o analisador fizesse o caminho inverso,
- *              teríamos um deadlock circular.
- *
- *
- * Risco 3 — Aprovação dupla para o mesmo destino no mesmo tick
- *
- *   Problema:  dois veículos podem submeter requisições para a mesma célula.
- *              Como map_is_occupied reflete o estado atual do mapa (não as
- *              aprovações do tick corrente), ambos passariam na verificação.
- *
- *
- * NOTA
- * ----
- * Qualquer decisão de implementação aqui pode ser alterada caso seja
- * necessário para garantir a ausência de deadlocks.
- *
- * ============================================================================ */

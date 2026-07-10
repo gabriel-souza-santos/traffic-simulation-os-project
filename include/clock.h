@@ -13,10 +13,12 @@
 #define URBAN_TRAFFIC_CLOCK_H
 
 #include <stddef.h>
-
 #include "analyser.h"
 
-// Fprwatd declaration
+/** @name Estruturas de dados */
+/** @{ */
+
+// Forward declaration
 typedef struct TrafficLight TrafficLight;
 
 /**
@@ -43,10 +45,12 @@ typedef struct Clock Clock;
  * @brief Argumentos passados para a função que executa a thread do relógio.
  */
 typedef struct {
-    Analyser *analyser;
-    Clock *clock;
-    TrafficLight *traffic_light;
+    Analyser *analyser;           /**< Ponteiro para o analisador de requisições. */
+    Clock *clock;                 /**< Ponteiro para o relógio global. */
+    TrafficLight *traffic_light;  /**< Ponteiro para o controlador de semáforos. */
 } ClockArgs;
+
+/** @} */
 
 /**
  * @brief Cria e inicializa uma nova instância do relógio.

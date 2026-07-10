@@ -15,6 +15,9 @@
 #include "clock.h"
 #include "map.h"
 
+/** @name Estruturas de dados */
+/** @{ */
+
 // Forward declaration
 typedef struct TrafficLight TrafficLight;
 
@@ -71,6 +74,7 @@ typedef enum {
  */
 typedef struct Vehicle Vehicle;
 
+/** @} */
 
 /**
  * Compartilhado entre todos os veículos

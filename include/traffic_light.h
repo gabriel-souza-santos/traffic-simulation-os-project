@@ -100,9 +100,6 @@ typedef struct {
 
 /** @} */
 
-/** @name API pública */
-/** @{ */
-
 /**
  * @brief Cria e inicializa uma nova instância do semáforo global.
  *
