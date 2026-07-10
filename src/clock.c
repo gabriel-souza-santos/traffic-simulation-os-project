@@ -12,6 +12,7 @@
 #include "clock.h"
 #include "debug.h"
 #include "analyser.h"
+#include "traffic_light.h"
 
 /**
  * @internal
@@ -135,8 +136,14 @@ void *clock_update(void *clock_args) {
         return NULL;
     }
 
+    if (!args->traffic_light) {
+        LOG("Error: thread argument 'traffic_light' is NULL.");
+        return NULL;
+    }
+
     Clock *clock = args->clock;
     Analyser *analyser = args->analyser;
+    TrafficLight *traffic_light = args->traffic_light;
 
     for (int t = 0; t < TICKS; t++) {
         TRY(pthread_mutex_lock(&clock->mutex));
@@ -146,6 +153,7 @@ void *clock_update(void *clock_args) {
             }
 
             analyser_swap_buffers(analyser);
+            traffic_light_swap_buffers(traffic_light);
             clock->completed_count = 0;
             clock->current_tick++;
 

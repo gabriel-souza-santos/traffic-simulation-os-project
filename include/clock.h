@@ -16,6 +16,9 @@
 
 #include "analyser.h"
 
+// Fprwatd declaration
+typedef struct TrafficLight TrafficLight;
+
 /**
  * @brief Número total de ticks da simulação.
  *
@@ -42,6 +45,7 @@ typedef struct Clock Clock;
 typedef struct {
     Analyser *analyser;
     Clock *clock;
+    TrafficLight *traffic_light;
 } ClockArgs;
 
 /**
