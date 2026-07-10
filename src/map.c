@@ -494,9 +494,8 @@ Coord map_reserve_spawn_point(Map *map) {
     TRY(pthread_mutex_lock(&map->mutex));
     Coord spawn_point;
 
-    // TODO: Gerar melhor distribuição para implementações futuras
 
-    for (size_t y = 0; y < map->height; y++) {
+    for (size_t y = 2; y < map->height; y++) {
         for (size_t x = 0; x < map->width; x++) {
             spawn_point.x = (int)x;
             spawn_point.y = (int)y;
