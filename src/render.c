@@ -106,28 +106,20 @@ static uint8_t *load_asset_from_file(const char *file_name, const size_t tile_wi
     size_t current_row = 0;
     size_t current_column = 0;
     int symbol;
-    bool last_was_newline = false;
 
     while ((symbol = fgetc(file)) != EOF && current_row < tile_height) {
-        if (symbol == '\n' || symbol == '\r') {
-            /* Se for o \n que segue um \r, apenas ignora para não pular duas vezes */
-            if (symbol == '\n' && last_was_newline) {
-                last_was_newline = false;
-                continue;
-            }
+        if (symbol == '\r') {
+            continue;
+        }
 
-            /* Avança para a próxima linha do asset apenas se lemos algo na coluna */
+        /* O '\n' passa a ser o único e exclusivo delimitador de fim de linha */
+        if (symbol == '\n') {
             if (current_column > 0) {
                 current_row++;
                 current_column = 0;
             }
-
-            last_was_newline = true;
             continue;
         }
-
-        /* Reset do estado de quebra ao encontrar um caractere válido */
-        last_was_newline = false;
 
         /* Se ainda couber na largura do tile, insere o caractere */
         if (current_column < tile_width) {

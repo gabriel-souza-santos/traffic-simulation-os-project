@@ -15,21 +15,29 @@
 #include "debug.h"
 #include "traffic_light.h"
 
-#define TILE_WIDTH      15
-#define TILE_HEIGHT     4
+#define TILE_WIDTH 16
+#define TILE_HEIGHT 4
 
-#define MAP_PATH        "res/map.txt"
-#define AMBULANCE_PATH  "res/ambulance.txt"
-#define CAR_FAST_PATH   "res/car-fast.txt"
-#define CAR_MEDIUM_PATH "res/car-medium.txt"
-#define CAR_SLOW_PATH   "res/car-slow.txt"
+#define PATH_MAP_DATA "res/data/map-data.txt"
 
-#define PATH_LIGHT_RED      "res/light-red.txt"
-#define PATH_LIGHT_GREEN    "res/light-green.txt"
-#define PATH_LIGHT_YELLOW   "res/light-yellow.txt"
+#define PATH_LIGHT_RED "res/traffic-light/light-red.txt"
+#define PATH_LIGHT_GREEN "res/traffic-light/light-green.txt"
+#define PATH_LIGHT_YELLOW "res/traffic-light/light-yellow.txt"
 
-#define TILE_ROAD_PATH    "res/tile-road.txt"
-#define TILE_BLOCKED_PATH "res/tile-blocked.txt"
+#define PATH_TILE_ROAD "res/tile/tile-road.txt"
+#define PATH_TILE_BLOCKED "res/tile/tile-blocked.txt"
+
+#define PATH_AMBULANCE_LEFT "res/vehicle/ambulance-left.txt"
+#define PATH_AMBULANCE_RIGHT "res/vehicle/ambulance-right.txt"
+
+#define PATH_CAR_FAST_LEFT "res/vehicle/car-fast-left.txt"
+#define PATH_CAR_FAST_RIGHT "res/vehicle/car-fast-right.txt"
+
+#define PATH_CAR_MEDIUM_LEFT "res/vehicle/car-medium-left.txt"
+#define PATH_CAR_MEDIUM_RIGHT "res/vehicle/car-medium-right.txt"
+
+#define PATH_CAR_SLOW_LEFT "res/vehicle/car-slow-left.txt"
+#define PATH_CAR_SLOW_RIGHT "res/vehicle/car-slow-right.txt"
 
 struct Simulation {
     Analyser *analyser;
@@ -60,17 +68,32 @@ Simulation *simulation_new(void) {
 
     simulation->analyser = analyser_new();
     simulation->clock = clock_new(total_workers);
-    simulation->map = map_new(MAP_PATH);
+    simulation->map = map_new(PATH_MAP_DATA);
     simulation->render = render_new(simulation->map, TILE_WIDTH, TILE_HEIGHT);
 
     for (int i = 0; i < VEHICLE_COUNT; i++) {
         simulation->vehicles[i] = vehicle_new(simulation->map, i);
     }
 
-    render_load_vehicle_asset_all_directions(simulation->render, AMBULANCE, AMBULANCE_PATH);
-    render_load_vehicle_asset_all_directions(simulation->render, CAR_FAST, CAR_FAST_PATH);
-    render_load_vehicle_asset_all_directions(simulation->render, CAR_SLOW, CAR_SLOW_PATH);
-    render_load_vehicle_asset_all_directions(simulation->render, CAR_MEDIUM, CAR_MEDIUM_PATH);
+    render_load_vehicle_asset(simulation->render, AMBULANCE, DIRECTION_LEFT, PATH_AMBULANCE_LEFT);
+    render_load_vehicle_asset(simulation->render, AMBULANCE, DIRECTION_DOWN, PATH_AMBULANCE_LEFT);
+    render_load_vehicle_asset(simulation->render, AMBULANCE, DIRECTION_RIGHT, PATH_AMBULANCE_RIGHT);
+    render_load_vehicle_asset(simulation->render, AMBULANCE, DIRECTION_UP, PATH_AMBULANCE_RIGHT);
+
+    render_load_vehicle_asset(simulation->render, CAR_FAST, DIRECTION_LEFT, PATH_CAR_FAST_LEFT);
+    render_load_vehicle_asset(simulation->render, CAR_FAST, DIRECTION_DOWN, PATH_CAR_FAST_LEFT);
+    render_load_vehicle_asset(simulation->render, CAR_FAST, DIRECTION_RIGHT, PATH_CAR_FAST_RIGHT);
+    render_load_vehicle_asset(simulation->render, CAR_FAST, DIRECTION_UP, PATH_CAR_FAST_RIGHT);
+
+    render_load_vehicle_asset(simulation->render, CAR_MEDIUM, DIRECTION_LEFT, PATH_CAR_MEDIUM_LEFT);
+    render_load_vehicle_asset(simulation->render, CAR_MEDIUM, DIRECTION_DOWN, PATH_CAR_MEDIUM_LEFT);
+    render_load_vehicle_asset(simulation->render, CAR_MEDIUM, DIRECTION_RIGHT, PATH_CAR_MEDIUM_RIGHT);
+    render_load_vehicle_asset(simulation->render, CAR_MEDIUM, DIRECTION_UP, PATH_CAR_MEDIUM_RIGHT);
+
+    render_load_vehicle_asset(simulation->render, CAR_SLOW, DIRECTION_LEFT, PATH_CAR_SLOW_LEFT);
+    render_load_vehicle_asset(simulation->render, CAR_SLOW, DIRECTION_DOWN, PATH_CAR_SLOW_LEFT);
+    render_load_vehicle_asset(simulation->render, CAR_SLOW, DIRECTION_RIGHT, PATH_CAR_SLOW_RIGHT);
+    render_load_vehicle_asset(simulation->render, CAR_SLOW, DIRECTION_UP, PATH_CAR_SLOW_RIGHT);
 
     const TileType roads[9] = {
         TILE_ROAD_UP, TILE_ROAD_DOWN, TILE_ROAD_LEFT, TILE_ROAD_RIGHT,
@@ -78,8 +101,8 @@ Simulation *simulation_new(void) {
         TILE_ROAD,
     };
 
-    render_load_tile_asset_multi(simulation->render, TILE_ROAD_PATH, roads, 9);
-    render_load_tile_asset(simulation->render, TILE_BLOCKED, TILE_BLOCKED_PATH);
+    render_load_tile_asset_multi(simulation->render, PATH_TILE_ROAD, roads, 9);
+    render_load_tile_asset(simulation->render, TILE_BLOCKED, PATH_TILE_BLOCKED);
 
     render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_RED, PATH_LIGHT_RED);
     render_load_traffic_light_asset(simulation->render, TRAFFIC_LIGHT_GREEN, PATH_LIGHT_GREEN);
