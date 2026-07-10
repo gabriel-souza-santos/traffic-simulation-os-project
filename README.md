@@ -233,17 +233,14 @@ Todas as threads executam exatamente uma etapa por tick e só prosseguem após a
  
 #### Validações antes do acesso ao recurso compartilhado
  
-Antes de enviar uma requisição ao analisador, cada veículo realiza verificações locais:
+Antes de solicitar acesso ao analisador, cada veículo verifica localmente se o movimento é válido, considerando os limites do mapa, a proximidade do destino e possíveis ultrapassagens proibidas. Apenas movimentos válidos são enviados ao analisador, reduzindo conflitos e o processamento necessário.
  
-```c
-if (!map_is_within_bounds(map, target))     { /* movimento inválido */ }
-else if (!is_adjacent(map, vehicle, target)) { /* movimento inválido */ }
-else if (is_overtaking(map, vehicle, target)){ /* movimento inválido */ }
-else { /* envia requisição ao analisador */ }
-```
- 
-Isso reduz o número de conflitos que precisam ser resolvidos pelo analisador.
- 
+---
+
+## Imagens da simulação:
+
+<img width="1140" height="973" alt="image" src="https://github.com/user-attachments/assets/e22e3734-21d6-4979-8dcd-db5e47e6ea76" />
+
 ---
  
 ## Membros e responsabilidades
