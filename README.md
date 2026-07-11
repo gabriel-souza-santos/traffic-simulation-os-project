@@ -24,7 +24,7 @@ cmake -S . -B build
 cmake --build build
 
 # 3. Execute o simulador
-./build/bin/urban_trafic
+./build/bin/urban_traffic
 ```
 
 Comando Único
