@@ -56,9 +56,9 @@ Ao executar o simulador, o programa exibe uma interface de linha de comando (CLI
   * `S` - Carro Lento
   * `#` - Quadro Intransitivo
   * `.` - Estrada
-  * `r` - Farol Vermelho
-  * `g` - Farol Verde
-  * `y` - Farol Amarelo
+  * `r` - Semáforo Vermelho
+  * `g` - Semáforo Verde
+  * `y` - Semáforo Amarelo
 
 > **Dica:** O sistema segue a convenção de CLI de sistemas Linux: pressionar **Enter** sem digitar nada em qualquer prompt aceitará o valor sugerido entre colchetes (ex: `[100]`).
  
@@ -78,7 +78,7 @@ Ao executar o simulador, o programa exibe uma interface de linha de comando (CLI
 │   └── 📄 vehicle.h       # Modelagem, propriedades e ciclo de vida dos veículos
 │
 ├── 📁 out
-│    └── 📄 debug.log               # Arquivo de dubug em caso de erros
+│    └── 📄 debug.log               # Arquivo de debug em caso de erros
 │
 ├── 📁 res
 │   └── 📁 data                     # Diretório para caregar dados no programa
